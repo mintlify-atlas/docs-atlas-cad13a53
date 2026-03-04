@@ -1,0 +1,174 @@
+---
+title: "POST /v1/reason2/action"
+description: "Process images and instructions to determine robot navigation actions using Cosmos Reason2 VLM"
+---
+
+## Endpoint
+
+```
+POST /v1/reason2/action
+```
+
+This endpoint processes an image (either from a URL or base64-encoded) along with a natural language instruction to determine if the robot's forward path is blocked. It returns reasoning and a navigation action.
+
+## Authentication
+
+<ParamField header="X-API-Key" type="string" required>
+  API key for authentication. Must match the `BRIDGE_API_KEY` environment variable.
+</ParamField>
+
+## Request Body
+
+<ParamField body="image_url" type="string" optional>
+  Publicly accessible image URL. Either `image_url` or `image_b64` must be provided.
+</ParamField>
+
+<ParamField body="image_b64" type="string" optional>
+  Base64-encoded image bytes (JPEG or PNG format). Either `image_url` or `image_b64` must be provided. Maximum size: 2MB (configurable via `MAX_IMAGE_BYTES`).
+</ParamField>
+
+<ParamField body="instruction" type="string" required>
+  Natural language instruction for the model. Must be 1-2000 characters.
+</ParamField>
+
+## Response
+
+<ResponseField name="reasoning" type="string">
+  One-sentence explanation of the model's decision-making process.
+</ResponseField>
+
+<ResponseField name="action" type="object">
+  Navigation action determined by the model's blocked/unblocked assessment.
+  
+  <ResponseField name="move" type="string">
+    Movement command: `"stop"` if blocked, `"linear_x"` if clear.
+  </ResponseField>
+  
+  <ResponseField name="distance" type="number">
+    Distance in meters: `0.0` if blocked, `0.5` if clear.
+  </ResponseField>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash curl
+curl -X POST https://your-api.com/v1/reason2/action \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "image_url": "https://example.com/robot-view.jpg",
+    "instruction": "Check if the path ahead is clear"
+  }'
+```
+
+```python Python
+import requests
+import base64
+
+# Using image_url
+response = requests.post(
+    "https://your-api.com/v1/reason2/action",
+    headers={
+        "X-API-Key": "your-api-key",
+        "Content-Type": "application/json"
+    },
+    json={
+        "image_url": "https://example.com/robot-view.jpg",
+        "instruction": "Check if the path ahead is clear"
+    }
+)
+
+result = response.json()
+print(f"Reasoning: {result['reasoning']}")
+print(f"Action: {result['action']}")
+
+# Using image_b64
+with open("robot-view.jpg", "rb") as f:
+    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+response = requests.post(
+    "https://your-api.com/v1/reason2/action",
+    headers={
+        "X-API-Key": "your-api-key",
+        "Content-Type": "application/json"
+    },
+    json={
+        "image_b64": image_b64,
+        "instruction": "Check if the path ahead is clear"
+    }
+)
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "reasoning": "No obstacles visible in the lower half of the frame",
+  "action": {
+    "move": "linear_x",
+    "distance": 0.5
+  }
+}
+```
+
+## Error Responses
+
+<ResponseField name="400" type="error">
+  Bad Request - Invalid input parameters.
+  
+  Possible causes:
+  - `instruction` is empty or exceeds 2000 characters
+  - Neither `image_url` nor `image_b64` provided
+  - Both `image_url` and `image_b64` provided
+  - Invalid base64 encoding in `image_b64`
+  - Decoded image is empty
+</ResponseField>
+
+<ResponseField name="401" type="error">
+  Unauthorized - Invalid or missing `X-API-Key` header.
+</ResponseField>
+
+<ResponseField name="413" type="error">
+  Payload Too Large - Image exceeds `MAX_IMAGE_BYTES` limit (default: 2MB).
+</ResponseField>
+
+<ResponseField name="500" type="error">
+  Internal Server Error - Model output was not valid JSON.
+</ResponseField>
+
+<ResponseField name="502" type="error">
+  Bad Gateway - Error communicating with the NIM backend.
+  
+  The response detail includes the NIM error status and message.
+</ResponseField>
+
+## Model Behavior
+
+The endpoint uses a conservative blocking detection policy:
+
+- **Blocked (`blocked=true`)**: Any solid obstacle (cone, barrier, box, wall, furniture) visible in the **lower half** of the image is assumed to block the robot within ~1 meter
+- **Clear (`blocked=false`)**: No obstacles detected in the critical zone
+
+### Action Mapping
+
+| Model Decision | Action Move | Distance |
+|----------------|-------------|----------|
+| `blocked=true` | `stop` | `0.0` |
+| `blocked=false` | `linear_x` | `0.5` |
+
+## Configuration
+
+The following environment variables control endpoint behavior:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BRIDGE_API_KEY` | `""` | Required API key for authentication |
+| `NIM_BASE_URL` | `http://127.0.0.1:8000/v1` | NIM backend base URL |
+| `NIM_MODEL` | `nvidia/cosmos-reason2-2b` | Model identifier |
+| `PUBLIC_BASE_URL` | `http://127.0.0.1:8080` | Public URL for temporary image serving |
+| `MAX_IMAGE_BYTES` | `2097152` | Maximum image size in bytes (2MB) |
+| `IMAGE_TTL_S` | `120` | Temporary image time-to-live in seconds |

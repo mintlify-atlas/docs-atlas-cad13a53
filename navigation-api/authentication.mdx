@@ -1,0 +1,327 @@
+---
+title: "Authentication"
+description: "Secure your Robot Navigation API with key-based authentication"
+---
+
+## Overview
+
+The Robot Navigation API uses a simple but secure API key authentication mechanism. All requests to protected endpoints must include a valid API key in the `X-API-Key` header.
+
+## Setting the API Key
+
+### Environment Variable
+
+Set the `BRIDGE_API_KEY` environment variable before starting the bridge:
+
+```bash
+export BRIDGE_API_KEY="your-secret-key-here"
+```
+
+<Warning>
+Use a strong, randomly generated key in production. Avoid simple strings like "test" or "password".
+</Warning>
+
+### Generate a Secure Key
+
+Use a cryptographically secure random generator:
+
+<CodeGroup>
+```bash OpenSSL
+openssl rand -base64 32
+```
+
+```python Python
+import secrets
+print(secrets.token_urlsafe(32))
+```
+
+```bash Linux
+head -c 32 /dev/urandom | base64
+```
+</CodeGroup>
+
+Example output:
+```
+QbX3vK9mN2pR5sT8wA1yC4zD7eF0gH6i
+```
+
+## Making Authenticated Requests
+
+### X-API-Key Header
+
+Include the `X-API-Key` header with every request to `/v1/reason2/action`:
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "X-API-Key: your-secret-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/image.jpg",
+    "instruction": "Is the path clear?"
+  }'
+```
+
+```python Python
+import requests
+
+headers = {
+    "X-API-Key": "your-secret-key-here",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(
+    "http://localhost:8080/v1/reason2/action",
+    headers=headers,
+    json={
+        "image_url": "https://example.com/image.jpg",
+        "instruction": "Is the path clear?"
+    }
+)
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8080/v1/reason2/action', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': 'your-secret-key-here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    image_url: 'https://example.com/image.jpg',
+    instruction: 'Is the path clear?'
+  })
+});
+```
+
+```go Go
+req, _ := http.NewRequest("POST", "http://localhost:8080/v1/reason2/action", body)
+req.Header.Set("X-API-Key", "your-secret-key-here")
+req.Header.Set("Content-Type", "application/json")
+
+resp, err := client.Do(req)
+```
+</CodeGroup>
+
+## Validation Implementation
+
+### Constant-Time Comparison
+
+The bridge uses `hmac.compare_digest()` for secure key validation, protecting against timing attacks:
+
+```python app.py (line 53-56)
+def validate_key(x_api_key: str):
+    # Use constant-time comparison for security
+    if not API_KEY or not hmac.compare_digest(x_api_key, API_KEY):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+```
+
+<Info>
+**Why constant-time comparison?**
+
+String equality operators (`==`) can leak information about the key through timing variations. `hmac.compare_digest()` ensures that comparison takes the same amount of time regardless of where the strings differ, preventing timing-based attacks.
+</Info>
+
+### Validation Flow
+
+<Steps>
+  <Step title="Extract Header">
+    FastAPI extracts the `X-API-Key` header value (defaults to empty string if missing).
+    
+    ```python app.py (line 114)
+    x_api_key: str = Header(default="")
+    ```
+  </Step>
+  
+  <Step title="Check Key is Set">
+    Validation fails if `BRIDGE_API_KEY` environment variable is not set.
+    
+    ```python
+    if not API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    ```
+  </Step>
+  
+  <Step title="Compare Keys">
+    Uses constant-time comparison to check if keys match.
+    
+    ```python
+    if not hmac.compare_digest(x_api_key, API_KEY):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    ```
+  </Step>
+  
+  <Step title="Allow or Deny">
+    Returns 401 Unauthorized if validation fails, otherwise allows the request to proceed.
+  </Step>
+</Steps>
+
+## Error Responses
+
+### Missing API Key
+
+```bash Request
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/image.jpg",
+    "instruction": "Is the path clear?"
+  }'
+```
+
+```json 401 Unauthorized
+{
+  "detail": "Unauthorized"
+}
+```
+
+### Invalid API Key
+
+```bash Request
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "X-API-Key: wrong-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/image.jpg",
+    "instruction": "Is the path clear?"
+  }'
+```
+
+```json 401 Unauthorized
+{
+  "detail": "Unauthorized"
+}
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Strong Keys" icon="key">
+    Generate keys with at least 32 bytes of entropy using `secrets.token_urlsafe()` or `openssl rand`.
+  </Card>
+  
+  <Card title="Rotate Keys" icon="rotate">
+    Periodically update your API key and redeploy the bridge with the new value.
+  </Card>
+  
+  <Card title="Use HTTPS" icon="lock">
+    In production, always use HTTPS to prevent key interception in transit.
+  </Card>
+  
+  <Card title="Keep Keys Secret" icon="eye-slash">
+    Never commit API keys to version control. Use environment variables or secret managers.
+  </Card>
+</CardGroup>
+
+### Environment Variable Management
+
+<AccordionGroup>
+  <Accordion title="Docker Secrets">
+    Use Docker secrets instead of environment variables:
+    
+    ```yaml docker-compose.yml
+    services:
+      bridge:
+        image: navigation-api:latest
+        secrets:
+          - bridge_api_key
+    
+    secrets:
+      bridge_api_key:
+        file: ./secrets/bridge_api_key.txt
+    ```
+    
+    Update app.py to read from secrets:
+    ```python
+    with open("/run/secrets/bridge_api_key") as f:
+        API_KEY = f.read().strip()
+    ```
+  </Accordion>
+  
+  <Accordion title="Kubernetes Secrets">
+    Store the key in a Kubernetes secret:
+    
+    ```bash
+    kubectl create secret generic bridge-api-key \
+      --from-literal=BRIDGE_API_KEY=your-secret-key-here
+    ```
+    
+    Reference in deployment:
+    ```yaml
+    env:
+      - name: BRIDGE_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: bridge-api-key
+            key: BRIDGE_API_KEY
+    ```
+  </Accordion>
+  
+  <Accordion title="AWS Secrets Manager">
+    Use boto3 to fetch secrets at runtime:
+    
+    ```python
+    import boto3
+    
+    client = boto3.client('secretsmanager')
+    response = client.get_secret_value(SecretId='bridge-api-key')
+    API_KEY = response['SecretString']
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Protected Endpoints
+
+Currently, only the main action endpoint requires authentication:
+
+| Endpoint | Authentication Required |
+|----------|-------------------------|
+| `POST /v1/reason2/action` | Yes |
+| `GET /v1/images/{token}.{ext}` | No |
+| `GET /docs` | No |
+| `GET /openapi.json` | No |
+
+<Note>
+The `/v1/images/` endpoint does not require authentication because:
+
+1. Image tokens are cryptographically secure (24-character random strings)
+2. Images expire after 120 seconds
+3. The NIM needs to fetch images without authentication
+
+Guessing a valid token is computationally infeasible (64^24 possible combinations).
+</Note>
+
+## Testing Authentication
+
+### Valid Key Test
+
+```bash
+export API_KEY="test-key-12345"
+
+# Start the bridge
+export BRIDGE_API_KEY="$API_KEY"
+python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 &
+
+# Test with correct key
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "X-API-Key: test-key-12345" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/test.jpg",
+    "instruction": "Test"
+  }'
+# Expected: 200 OK (or 502 if NIM is not running)
+```
+
+### Invalid Key Test
+
+```bash
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "X-API-Key: wrong-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/test.jpg",
+    "instruction": "Test"
+  }'
+# Expected: 401 Unauthorized
+```

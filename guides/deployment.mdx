@@ -1,0 +1,302 @@
+---
+title: Deployment
+description: Deploy the NVIDIA Cosmos Reason2 API bridge in production
+---
+
+This guide covers production deployment considerations for the Cosmos Reason2 API Bridge service, which provides a simplified interface to the NVIDIA Cosmos VLM NIM container.
+
+## Architecture Overview
+
+The deployment consists of two main components:
+
+<CardGroup cols={2}>
+  <Card title="NIM Container" icon="docker">
+    NVIDIA Cosmos VLM (nvidia/cosmos-reason2-2b or 8b) running on port 8000
+  </Card>
+  <Card title="API Bridge" icon="link">
+    FastAPI service (app.py) running on port 8080 that wraps NIM with application logic
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+<Accordion title="Required Resources">
+  **GPU Requirements**
+  - NVIDIA GPU with CUDA support
+  - **2B Model**: 16GB+ VRAM recommended
+  - **8B Model**: 24GB+ VRAM recommended
+  - Docker with NVIDIA Container Runtime
+  
+  **Software**
+  - Docker 20.10+
+  - NVIDIA Container Runtime
+  - NGC API Key (obtain from [NGC Catalog](https://ngc.nvidia.com/))
+  
+  **Disk Space**
+  - ~10GB for NIM container image
+  - Additional space for model cache (~5-15GB depending on model)
+</Accordion>
+
+## Environment Variables
+
+Configure these environment variables before deployment:
+
+### NIM Container Variables
+
+```bash
+export NGC_API_KEY="your-ngc-api-key-here"
+export CONTAINER_NAME="nvidia-cosmos-reason2-2b"
+export LOCAL_NIM_CACHE=~/.cache/nim
+```
+
+### API Bridge Variables
+
+```bash
+# Security
+export BRIDGE_API_KEY="super-secret-key"  # Change this!
+
+# NIM Connection
+export NIM_BASE_URL="http://127.0.0.1:8000/v1"
+export NIM_MODEL="nvidia/cosmos-reason2-2b"
+
+# Public URL for temporary image hosting
+export PUBLIC_BASE_URL="http://host.docker.internal:8080"
+
+# Limits (optional)
+export MAX_IMAGE_BYTES="2097152"  # 2MB default
+export IMAGE_TTL_S="120"          # 2 minutes default
+```
+
+<Warning>
+  **Security**: Always change `BRIDGE_API_KEY` from the default value in production. Use a strong, randomly generated key.
+</Warning>
+
+## Deployment Methods
+
+### Method 1: Two-Container Setup (Recommended)
+
+Run NIM and API Bridge as separate containers.
+
+<Steps>
+  <Step title="Start NIM Container">
+    ```bash jkchoi/commands/docker_run_cmd.sh
+    # Set container configuration
+    export CONTAINER_NAME="nvidia-cosmos-reason2-2b"
+    export Repository="cosmos-reason2-2b"
+    export Latest_Tag="1.6.0"
+    export IMG_NAME="nvcr.io/nim/nvidia/${Repository}:${Latest_Tag}"
+    export LOCAL_NIM_CACHE=~/.cache/nim
+    mkdir -p "$LOCAL_NIM_CACHE"
+    
+    # Start NIM container
+    docker run -it --rm \
+      --name=$CONTAINER_NAME \
+      --runtime=nvidia \
+      --gpus all \
+      --shm-size=32GB \
+      --add-host=host.docker.internal:host-gateway \
+      -e NGC_API_KEY=$NGC_API_KEY \
+      -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+      -u $(id -u) \
+      -p 8000:8000 \
+      $IMG_NAME
+    ```
+  </Step>
+  
+  <Step title="Wait for NIM Startup">
+    Wait for the NIM container to download models and start (first run may take 10-15 minutes):
+    ```bash
+    # Test NIM health
+    curl http://localhost:8000/v1/health
+    ```
+  </Step>
+  
+  <Step title="Start API Bridge">
+    ```bash jkchoi/commands/uvicorn_cmd.sh
+    export BRIDGE_API_KEY="your-secret-key"
+    export NIM_BASE_URL="http://127.0.0.1:8000/v1"
+    export NIM_MODEL="nvidia/cosmos-reason2-2b"
+    export PUBLIC_BASE_URL="http://host.docker.internal:8080"
+    
+    python3 -m uvicorn app:app --host 0.0.0.0 --port 8080
+    ```
+  </Step>
+</Steps>
+
+### Method 2: Systemd Service (Linux Production)
+
+For production Linux deployments, use systemd for automatic restarts and logging.
+
+<CodeGroup>
+```ini /etc/systemd/system/nim-container.service
+[Unit]
+Description=NVIDIA Cosmos NIM Container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker stop nvidia-cosmos-reason2-2b
+ExecStartPre=-/usr/bin/docker rm nvidia-cosmos-reason2-2b
+ExecStart=/usr/bin/docker run --name=nvidia-cosmos-reason2-2b \
+  --runtime=nvidia --gpus all --shm-size=32GB \
+  --add-host=host.docker.internal:host-gateway \
+  -e NGC_API_KEY=%NGC_API_KEY% \
+  -v /var/cache/nim:/opt/nim/.cache \
+  -p 8000:8000 \
+  nvcr.io/nim/nvidia/cosmos-reason2-2b:1.6.0
+ExecStop=/usr/bin/docker stop nvidia-cosmos-reason2-2b
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```ini /etc/systemd/system/api-bridge.service
+[Unit]
+Description=Cosmos API Bridge
+After=nim-container.service
+Requires=nim-container.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cosmos-api-bridge
+Environment="BRIDGE_API_KEY=your-secret-key"
+Environment="NIM_BASE_URL=http://127.0.0.1:8000/v1"
+Environment="NIM_MODEL=nvidia/cosmos-reason2-2b"
+Environment="PUBLIC_BASE_URL=http://host.docker.internal:8080"
+ExecStart=/usr/bin/python3 -m uvicorn app:app --host 0.0.0.0 --port 8080
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+</CodeGroup>
+
+```bash
+# Enable and start services
+sudo systemctl enable nim-container api-bridge
+sudo systemctl start nim-container
+sudo systemctl start api-bridge
+
+# Check status
+sudo systemctl status nim-container api-bridge
+```
+
+## Resource Management
+
+### GPU Memory Optimization
+
+<Tip>
+  To reduce GPU memory usage, use the 2B model instead of 8B:
+  ```bash
+  export Repository="cosmos-reason2-2b"  # Uses less memory
+  ```
+</Tip>
+
+### Image Size Limits
+
+Control maximum accepted image size to prevent memory exhaustion:
+
+```python jkchoi/scripts/app.py (lines 23-24)
+MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(2 * 1024 * 1024)))
+```
+
+Clients exceeding this limit will receive a `413` error.
+
+### Image Cache Management
+
+The API bridge stores temporary images in memory with automatic expiration:
+
+```python jkchoi/scripts/app.py (lines 26-27)
+IMAGE_TTL_S = int(os.environ.get("IMAGE_TTL_S", "120"))
+```
+
+<Warning>
+  In-memory storage means images are lost on restart. For persistent storage, implement a Redis or database backend.
+</Warning>
+
+## Scaling Considerations
+
+### Horizontal Scaling
+
+To handle more requests:
+
+1. **Run multiple API Bridge instances** with a load balancer
+2. **Each instance should point to the same NIM container** (or use multiple NIM instances)
+3. **Use external session storage** (Redis) for image tokens
+
+### Vertical Scaling
+
+For higher throughput per instance:
+
+- Increase `--workers` for Uvicorn (CPU-bound)
+- Upgrade to the 8B model for better quality (requires more VRAM)
+- Increase `--shm-size` for Docker if processing large batches
+
+## Monitoring
+
+### Health Checks
+
+<CodeGroup>
+```bash NIM Health Check
+curl http://localhost:8000/v1/health
+```
+
+```bash API Bridge Health Check
+curl -H "X-Api-Key: your-secret-key" \
+  http://localhost:8080/v1/images/test.jpg
+# Should return 404 (endpoint exists)
+```
+</CodeGroup>
+
+### Log Monitoring
+
+```bash
+# Docker logs
+docker logs -f nvidia-cosmos-reason2-2b
+
+# Systemd logs
+journalctl -u nim-container -f
+journalctl -u api-bridge -f
+```
+
+### Key Metrics to Monitor
+
+- NIM container GPU utilization
+- API Bridge response times
+- Image token expiration rate
+- 413 (payload too large) error rate
+- 502 (NIM error) rate
+
+## Production Checklist
+
+<AccordionGroup>
+  <Accordion title="Security">
+    - [ ] Change default `BRIDGE_API_KEY`
+    - [ ] Use HTTPS/TLS for external access
+    - [ ] Implement rate limiting
+    - [ ] Restrict Docker network access
+    - [ ] Set up firewall rules
+  </Accordion>
+  
+  <Accordion title="Reliability">
+    - [ ] Configure automatic restarts (systemd/Docker restart policy)
+    - [ ] Set up health check monitoring
+    - [ ] Configure log rotation
+    - [ ] Test failure recovery
+    - [ ] Document rollback procedures
+  </Accordion>
+  
+  <Accordion title="Performance">
+    - [ ] Benchmark response times
+    - [ ] Tune `MAX_IMAGE_BYTES` for your use case
+    - [ ] Adjust `IMAGE_TTL_S` based on usage patterns
+    - [ ] Profile GPU memory usage
+    - [ ] Set up request queuing if needed
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- [Troubleshooting Guide](/guides/troubleshooting) - Resolve common deployment issues
+- [API Reference](/api-reference/reason2-action) - Learn the API endpoints

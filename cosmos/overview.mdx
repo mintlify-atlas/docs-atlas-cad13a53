@@ -1,0 +1,98 @@
+---
+title: 'Cosmos Reason2 Overview'
+description: 'NVIDIA Cosmos Reason2 vision-language model for image and video understanding'
+---
+
+## What is Cosmos Reason2?
+
+Cosmos Reason2 is NVIDIA's vision-language model (VLM) designed for advanced visual understanding and spatial reasoning. It combines computer vision capabilities with natural language processing to analyze and describe images and videos.
+
+The model excels at:
+- Image analysis and description
+- Video content understanding
+- Spatial reasoning and scene interpretation
+- Multi-modal question answering
+
+## Model Variants
+
+Cosmos Reason2 is available in two sizes:
+
+<CardGroup cols={2}>
+  <Card title="cosmos-reason2-2b" icon="brain">
+    **2 Billion Parameters**
+    
+    Lightweight model optimized for faster inference with lower resource requirements.
+    
+    ```bash
+    nvidia/cosmos-reason2-2b
+    ```
+  </Card>
+  
+  <Card title="cosmos-reason2-8b" icon="microchip">
+    **8 Billion Parameters**
+    
+    Larger model with enhanced reasoning capabilities for complex visual tasks.
+    
+    ```bash
+    nvidia/cosmos-reason2-8b
+    ```
+  </Card>
+</CardGroup>
+
+## Key Capabilities
+
+### Image Understanding
+
+Analyze static images for:
+- Object detection and identification
+- Scene composition
+- Spatial relationships between objects
+- Visual attributes and properties
+
+### Video Understanding
+
+Process video content for:
+- Temporal analysis of events
+- Motion tracking and interpretation
+- Scene transitions
+- Action recognition
+
+### Spatial Reasoning
+
+Advanced reasoning about:
+- Object positions and arrangements
+- Depth and perspective
+- Relative sizes and distances
+- Environmental context
+
+## When to Use Cosmos Reason2
+
+<AccordionGroup>
+  <Accordion title="Robotics Applications">
+    Use Cosmos Reason2 for robotic vision systems that need to understand their environment, identify objects, and navigate spaces safely.
+  </Accordion>
+  
+  <Accordion title="Navigation Systems">
+    Enable autonomous systems to interpret visual scenes, understand spatial layouts, and make navigation decisions based on visual input.
+  </Accordion>
+  
+  <Accordion title="Scene Understanding">
+    Analyze complex scenes in images or videos to extract meaningful information about objects, activities, and relationships.
+  </Accordion>
+  
+  <Accordion title="Visual Question Answering">
+    Build applications that can answer natural language questions about visual content, combining vision and language understanding.
+  </Accordion>
+</AccordionGroup>
+
+## Getting Started
+
+To start using Cosmos Reason2:
+
+1. **Deploy the NIM container** - See [Configuration](/cosmos/configuration) for Docker setup
+2. **Integrate with your app** - Check [Integration](/cosmos/integration) for OpenAI SDK usage
+3. **Explore examples** - Visit [Examples](/cosmos/examples) for real code samples
+
+<Note>
+  Cosmos Reason2 requires NVIDIA GPU hardware and the NGC API key for model access.
+</Note>

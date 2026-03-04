@@ -1,80 +1,323 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get up and running with NVIDIA Cosmos Cookoff in under 10 minutes
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will walk you through setting up the Cosmos Reason2 VLM and FastAPI bridge to start making vision-based navigation decisions.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  This quickstart focuses on the vision-based navigation pipeline. For 3D Gaussian Splatting setup, see the [3DGUT Training Guide](/gaussian-splatting/training).
 </Note>
+
+## Quick Setup
+
+<Steps>
+  <Step title="Get NGC API Key and Pull NIM Container">
+    First, create an NGC account and get your API key:
+
+    1. Go to [ngc.nvidia.com](https://ngc.nvidia.com) and sign up/login
+    2. Navigate to **Setup > Generate API Key**
+    3. Generate and copy your API key
+    4. Export it as an environment variable:
+
+    ```bash
+    export NGC_API_KEY="your-api-key-here"
+    ```
+
+    Now pull and run the Cosmos Reason2 NIM container:
+
+    ```bash
+    # Choose a container name for bookkeeping
+    export CONTAINER_NAME="nvidia-cosmos-reason2-2b"
+
+    # Select the model (2B is recommended for most users)
+    Repository="cosmos-reason2-2b"  # or "cosmos-reason2-8b" for higher accuracy
+    Latest_Tag="1.6.0"
+
+    # Set the NIM image name
+    export IMG_NAME="nvcr.io/nim/nvidia/${Repository}:${Latest_Tag}"
+
+    # Create cache directory for downloaded models
+    export LOCAL_NIM_CACHE=~/.cache/nim
+    mkdir -p "$LOCAL_NIM_CACHE"
+
+    # Start the VLM NIM container
+    docker run -it --rm \
+      --name=$CONTAINER_NAME \
+      --runtime=nvidia \
+      --gpus all \
+      --shm-size=32GB \
+      --add-host=host.docker.internal:host-gateway \
+      -e NGC_API_KEY=$NGC_API_KEY \
+      -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+      -u $(id -u) \
+      -p 8000:8000 \
+      $IMG_NAME
+    ```
+
+    <Warning>
+      The first run will download several GB of model weights. This may take 10-30 minutes depending on your internet connection. Subsequent runs will be much faster.
+    </Warning>
+
+    The NIM container will be ready when you see:
+    ```
+    INFO:     Uvicorn running on http://0.0.0.0:8000
+    ```
+  </Step>
+
+  <Step title="Run the FastAPI Bridge">
+    Open a **new terminal** (keep the NIM container running) and navigate to the scripts directory:
+
+    ```bash
+    cd jkchoi/scripts
+    ```
+
+    Set the required environment variables and start the FastAPI bridge:
+
+    ```bash
+    export BRIDGE_API_KEY="super-secret-key"
+    export NIM_BASE_URL="http://127.0.0.1:8000/v1"
+    export NIM_MODEL="nvidia/cosmos-reason2-2b"
+    export PUBLIC_BASE_URL="http://host.docker.internal:8080"
+    python3 -m uvicorn app:app --host 0.0.0.0 --port 8080
+    ```
+
+    <Note>
+      **Environment Variables Explained:**
+      - `BRIDGE_API_KEY`: Authentication key for your API (change this to a secure value)
+      - `NIM_BASE_URL`: URL where the Cosmos NIM is running
+      - `NIM_MODEL`: Model identifier to use
+      - `PUBLIC_BASE_URL`: Public URL for temporary image hosting
+    </Note>
+
+    The FastAPI bridge will be ready when you see:
+    ```
+    INFO:     Application startup complete.
+    INFO:     Uvicorn running on http://0.0.0.0:8080
+    ```
+  </Step>
+
+  <Step title="Make Your First API Request">
+    Now you can test the system with a vision-based navigation request. Create a new Python script:
+
+    ```python
+    import requests
+    import base64
+
+    # API endpoint and authentication
+    url = "http://127.0.0.1:8080/v1/reason2/action"
+    headers = {
+        "X-Api-Key": "super-secret-key",
+        "Content-Type": "application/json"
+    }
+
+    # Option 1: Using a public image URL
+    payload = {
+        "image_url": "https://example.com/robot-view.jpg",
+        "instruction": "Analyze the forward path for obstacles"
+    }
+
+    # Option 2: Using base64-encoded image
+    # with open("robot-view.jpg", "rb") as f:
+    #     image_b64 = base64.b64encode(f.read()).decode("utf-8")
+    # 
+    # payload = {
+    #     "image_b64": image_b64,
+    #     "instruction": "Analyze the forward path for obstacles"
+    # }
+
+    response = requests.post(url, json=payload, headers=headers)
+    print(response.json())
+    ```
+
+    Run the script:
+    ```bash
+    python test_navigation.py
+    ```
+  </Step>
+</Steps>
+
+## Expected Output
+
+When the system analyzes an image, you'll receive a JSON response with reasoning and action:
+
+```json
+{
+  "reasoning": "Clear path visible with no obstacles in the lower half of the frame",
+  "action": {
+    "move": "linear_x",
+    "distance": 0.5
+  }
+}
+```
+
+If an obstacle is detected:
+
+```json
+{
+  "reasoning": "A cone is visible in the lower portion of the image blocking the path",
+  "action": {
+    "move": "stop",
+    "distance": 0.0
+  }
+}
+```
+
+<Info>
+  The system uses a **conservative approach**: any solid obstacle (cone, barrier, box, wall, furniture) in the lower half of the image will trigger a stop action to ensure safety.
+</Info>
+
+## Testing with OpenAI SDK
+
+You can also interact directly with the Cosmos Reason2 NIM using the OpenAI SDK:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://127.0.0.1:8000/v1",
+    api_key="not-used"  # API key not required for local NIM
+)
+
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "https://assets.ngc.nvidia.com/products/api-catalog/phi-3-5-vision/example1b.jpg"
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        ]
+    }
+]
+
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=False
+)
+
+assistant_message = chat_response.choices[0].message
+print(assistant_message)
+```
+
+### Streaming Responses
+
+For real-time output, enable streaming:
+
+```python
+stream = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=True
+)
+
+for chunk in stream:
+    delta = chunk.choices[0].delta
+    if delta and delta.content:
+        text = delta.content
+        print(text, end="", flush=True)
+print()
+```
+
+## Understanding the FastAPI Bridge
+
+The FastAPI bridge (`app.py`) provides several key features:
+
+### Image Handling
+- Accepts images via public URL or base64 encoding
+- Automatically detects image format (JPEG/PNG)
+- Creates temporary HTTP URLs for base64 images (2-minute TTL)
+- Enforces size limits (default 2MB) for security
+
+### Security
+- API key authentication using constant-time comparison
+- Request validation with Pydantic models
+- Automatic cleanup of expired temporary images
+
+### Robot Navigation Logic
+The bridge implements a deterministic decision policy:
+
+```python
+# From app.py:198-199
+action = {"move": "stop", "distance": 0.0} if blocked else {"move": "linear_x", "distance": 0.5}
+```
+
+- **Blocked path**: Robot stops (distance = 0.0)
+- **Clear path**: Robot moves forward 0.5 meters
+
+<Warning>
+  Adjust the `distance` value based on your robot's capabilities and safety requirements. Start with conservative values during testing.
+</Warning>
+
+## Next Steps
+
+Now that you have the basic system running, explore:
+
+<CardGroup cols={2}>
+  <Card title="3DGUT Training" icon="cube" href="/gaussian-splatting/training">
+    Train 3D Gaussian Splatting models on real-world scenes
+  </Card>
+  
+  <Card title="Isaac Sim Integration" icon="robot" href="/gaussian-splatting/usd-export">
+    Export USD scenes for testing in NVIDIA Isaac Sim
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api-reference/reason2-action">
+    Detailed API endpoints and parameters
+  </Card>
+  
+  <Card title="Cosmos Integration" icon="brain" href="/cosmos/integration">
+    Learn more about integrating Cosmos Reason2
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Container fails to start">
+    - Verify your NGC_API_KEY is correctly set and valid
+    - Check that port 8000 is not already in use: `lsof -i :8000`
+    - Ensure NVIDIA Container Toolkit is installed: `docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi`
+    - Check GPU availability: `nvidia-smi`
+  </Accordion>
+
+  <Accordion title="API bridge returns 502 errors">
+    - Verify the NIM container is running and healthy
+    - Check NIM_BASE_URL is correct (default: `http://127.0.0.1:8000/v1`)
+    - Test NIM directly: `curl http://127.0.0.1:8000/v1/models`
+    - Review NIM container logs for errors
+  </Accordion>
+
+  <Accordion title="Image upload fails">
+    - Check image size is under 2MB (configurable via MAX_IMAGE_BYTES)
+    - Verify image format is JPEG or PNG
+    - For base64: ensure proper encoding without line breaks
+    - For URLs: confirm the image is publicly accessible
+  </Accordion>
+
+  <Accordion title="Out of memory errors">
+    - Try the 2B model instead of 8B if using the larger variant
+    - Reduce `--shm-size` if system RAM is limited
+    - Close other GPU-intensive applications
+    - Reduce `max_tokens` in API requests
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+  For additional support, check the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/) or file an issue in the project repository.
+</Info>

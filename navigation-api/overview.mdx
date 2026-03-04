@@ -1,0 +1,110 @@
+---
+title: "Robot Navigation API Overview"
+description: "Learn how the Cosmos Reason2 Navigation API bridges vision-language models with robot navigation systems"
+---
+
+## What is the Navigation API?
+
+The Robot Navigation API is a FastAPI bridge that connects NVIDIA's Cosmos Reason2 vision-language model (VLM) to robot navigation systems. It enables robots to make intelligent navigation decisions based on visual input and natural language instructions.
+
+## Core Use Case: Robot Vacuum Obstacle Detection
+
+The API is designed for a **robot vacuum** equipped with a front-facing camera. The system:
+
+1. Captures an image from the robot's camera
+2. Sends the image to Cosmos Reason2 VLM via the bridge
+3. Receives a reasoning-based decision on whether the path is blocked
+4. Executes the appropriate navigation action (move forward or stop)
+
+## Architecture
+
+The Navigation API consists of three key components:
+
+<CardGroup cols={3}>
+  <Card title="FastAPI Bridge" icon="bridge">
+    REST API that validates requests, handles authentication, and manages temporary image hosting
+  </Card>
+  
+  <Card title="Cosmos Reason2 NIM" icon="brain">
+    NVIDIA Inference Microservice running the `nvidia/cosmos-reason2-2b` model for visual reasoning
+  </Card>
+  
+  <Card title="Temporary Image Store" icon="image">
+    In-memory storage for base64-encoded images with automatic expiration (default 120s TTL)
+  </Card>
+</CardGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Image Input">
+    Client sends an image either as a public URL or base64-encoded bytes along with a natural language instruction.
+  </Step>
+  
+  <Step title="Image Hosting">
+    If using base64 input, the bridge temporarily hosts the image at a public URL (e.g., `http://127.0.0.1:8080/v1/images/{token}.jpg`).
+  </Step>
+  
+  <Step title="VLM Reasoning">
+    The bridge forwards the image URL and instruction to the Cosmos Reason2 NIM with a specialized prompt:
+    
+    ```
+    You are a robot vacuum front-facing camera.
+    Decide if the forward path is BLOCKED.
+    Definition of BLOCKED (conservative):
+    - If any solid obstacle (cone, barrier, box, wall, furniture) 
+      is visible in the LOWER HALF of the image, assume it may 
+      block the robot within ~1 meter and set blocked=true.
+    - Otherwise set blocked=false.
+    ```
+  </Step>
+  
+  <Step title="Action Decision">
+    The model returns JSON with reasoning and a blocked status. The bridge maps this to a concrete navigation action:
+    
+    - **Blocked**: `{"move": "stop", "distance": 0.0}`
+    - **Clear**: `{"move": "linear_x", "distance": 0.5}`
+  </Step>
+  
+  <Step title="Response">
+    Client receives the reasoning explanation and action command for execution.
+  </Step>
+</Steps>
+
+## Key Features
+
+- **Flexible Image Input**: Accept both public URLs and base64-encoded images
+- **Automatic Image Cleanup**: Temporary images expire after 120 seconds (configurable)
+- **Secure Authentication**: API key validation using constant-time comparison
+- **Error Handling**: Detailed error messages for debugging NIM connectivity issues
+- **Conservative Obstacle Detection**: Prioritizes safety by detecting obstacles in the lower half of the camera view
+
+## Response Format
+
+The API returns structured JSON with both the model's reasoning and the actionable command:
+
+```json
+{
+  "reasoning": "Clear path ahead with no obstacles visible in the lower frame",
+  "action": {
+    "move": "linear_x",
+    "distance": 0.5
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup" icon="wrench" href="./setup">
+    Configure environment variables and run the bridge
+  </Card>
+  
+  <Card title="Endpoints" icon="code" href="./endpoints">
+    Explore the API endpoints and request/response schemas
+  </Card>
+  
+  <Card title="Authentication" icon="lock" href="./authentication">
+    Learn how to secure your API with key-based authentication
+  </Card>
+</CardGroup>

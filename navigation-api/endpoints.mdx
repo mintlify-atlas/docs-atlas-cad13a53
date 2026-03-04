@@ -1,0 +1,375 @@
+---
+title: "API Endpoints"
+description: "Complete reference for the Robot Navigation API endpoints"
+---
+
+## POST /v1/reason2/action
+
+Send an image and instruction to Cosmos Reason2 for navigation decision-making.
+
+### Request
+
+#### Headers
+
+<ParamField header="X-API-Key" type="string" required>
+  Authentication key matching the `BRIDGE_API_KEY` environment variable.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/json`.
+</ParamField>
+
+#### Body Parameters
+
+<ParamField body="image_url" type="string">
+  Publicly accessible URL to an image (JPEG or PNG). Either this or `image_b64` is required.
+  
+  **Example**: `"https://example.com/robot-view.jpg"`
+</ParamField>
+
+<ParamField body="image_b64" type="string">
+  Base64-encoded image bytes (JPEG or PNG). Either this or `image_url` is required.
+  
+  **Max size**: 2 MB by default (configurable via `MAX_IMAGE_BYTES`)
+  
+  **Example**: `"iVBORw0KGgoAAAANSUhEUgAAAAUA..."`
+</ParamField>
+
+<ParamField body="instruction" type="string" required>
+  Natural language instruction for the robot navigation task.
+  
+  **Min length**: 1 character  
+  **Max length**: 2000 characters
+  
+  **Example**: `"Is the path ahead clear for the robot to move forward?"`
+</ParamField>
+
+### Response
+
+<ResponseField name="reasoning" type="string">
+  Natural language explanation of the model's decision.
+</ResponseField>
+
+<ResponseField name="action" type="object">
+  Navigation command for the robot.
+  
+  <Expandable title="properties">
+    <ResponseField name="move" type="string">
+      Movement type: `"linear_x"` (forward) or `"stop"` (halt).
+    </ResponseField>
+    
+    <ResponseField name="distance" type="number">
+      Distance in meters: `0.5` for forward movement, `0.0` for stop.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Examples
+
+#### Using Public Image URL
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "X-API-Key: super-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/robot-camera-view.jpg",
+    "instruction": "Is the path ahead clear for the robot to move forward?"
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://localhost:8080/v1/reason2/action",
+    headers={
+        "X-API-Key": "super-secret-key",
+        "Content-Type": "application/json"
+    },
+    json={
+        "image_url": "https://example.com/robot-camera-view.jpg",
+        "instruction": "Is the path ahead clear for the robot to move forward?"
+    }
+)
+
+result = response.json()
+print(f"Reasoning: {result['reasoning']}")
+print(f"Action: {result['action']}")
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8080/v1/reason2/action', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': 'super-secret-key',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    image_url: 'https://example.com/robot-camera-view.jpg',
+    instruction: 'Is the path ahead clear for the robot to move forward?'
+  })
+});
+
+const result = await response.json();
+console.log('Reasoning:', result.reasoning);
+console.log('Action:', result.action);
+```
+</CodeGroup>
+
+#### Using Base64-Encoded Image
+
+<CodeGroup>
+```bash cURL
+# Read image and encode to base64
+IMAGE_B64=$(base64 -w 0 robot-view.jpg)
+
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "X-API-Key: super-secret-key" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"image_b64\": \"$IMAGE_B64\",
+    \"instruction\": \"Is the path ahead clear for the robot to move forward?\"
+  }"
+```
+
+```python Python
+import base64
+import requests
+
+# Read and encode image
+with open("robot-view.jpg", "rb") as f:
+    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+response = requests.post(
+    "http://localhost:8080/v1/reason2/action",
+    headers={
+        "X-API-Key": "super-secret-key",
+        "Content-Type": "application/json"
+    },
+    json={
+        "image_b64": image_b64,
+        "instruction": "Is the path ahead clear for the robot to move forward?"
+    }
+)
+
+result = response.json()
+print(f"Reasoning: {result['reasoning']}")
+print(f"Action: {result['action']}")
+```
+</CodeGroup>
+
+### Response Examples
+
+#### Path is Clear
+
+```json 200 OK
+{
+  "reasoning": "Clear path ahead with no obstacles visible in the lower frame",
+  "action": {
+    "move": "linear_x",
+    "distance": 0.5
+  }
+}
+```
+
+#### Path is Blocked
+
+```json 200 OK
+{
+  "reasoning": "Large box visible in lower half of frame blocking forward movement",
+  "action": {
+    "move": "stop",
+    "distance": 0.0
+  }
+}
+```
+
+### Error Responses
+
+<ResponseExample>
+```json 400 Bad Request - Missing Image
+{
+  "detail": "Either image_url or image_b64 must be provided"
+}
+```
+
+```json 400 Bad Request - Invalid Base64
+{
+  "detail": "Invalid image_b64 (not valid base64)"
+}
+```
+
+```json 400 Bad Request - Empty Instruction
+{
+  "detail": "instruction must be non-empty"
+}
+```
+
+```json 401 Unauthorized
+{
+  "detail": "Unauthorized"
+}
+```
+
+```json 413 Payload Too Large
+{
+  "detail": "Image too large"
+}
+```
+
+```json 500 Internal Server Error
+{
+  "detail": "Model output was not valid JSON"
+}
+```
+
+```json 502 Bad Gateway
+{
+  "detail": "NIM error 500: Internal server error"
+}
+```
+</ResponseExample>
+
+## GET /v1/images/{token}.{ext}
+
+Retrieve a temporarily hosted image by its token. This endpoint is used internally when clients submit base64-encoded images.
+
+<Warning>
+This endpoint is primarily for internal use by the NIM. Temporary images expire after 120 seconds (configurable via `IMAGE_TTL_S`).
+</Warning>
+
+### Request
+
+#### Path Parameters
+
+<ParamField path="token" type="string" required>
+  URL-safe token generated when storing the image (24 characters).
+  
+  **Example**: `"a7B3cD4eF5gH6iJ7kL8mN9oP0qR1s"`
+</ParamField>
+
+<ParamField path="ext" type="string" required>
+  File extension matching the image format: `jpg` or `png`.
+  
+  **Example**: `"jpg"`
+</ParamField>
+
+### Response
+
+Returns the raw image bytes with appropriate `Content-Type` header.
+
+<ResponseField name="Content-Type" type="string">
+  MIME type of the image: `image/jpeg` or `image/png`.
+</ResponseField>
+
+<ResponseField name="Cache-Control" type="string">
+  Set to `no-store` to prevent caching.
+</ResponseField>
+
+<ResponseField name="Expires" type="string">
+  Set to `0` to indicate immediate expiration.
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl http://localhost:8080/v1/images/a7B3cD4eF5gH6iJ7kL8mN9oP0qR1s.jpg \
+  --output retrieved-image.jpg
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://localhost:8080/v1/images/a7B3cD4eF5gH6iJ7kL8mN9oP0qR1s.jpg"
+)
+
+with open("retrieved-image.jpg", "wb") as f:
+    f.write(response.content)
+```
+
+### Error Responses
+
+```json 404 Not Found - Expired
+{
+  "detail": "Image not found or expired"
+}
+```
+
+```json 404 Not Found - Wrong Extension
+{
+  "detail": "Image not found"
+}
+```
+
+## Implementation Details
+
+### Image Storage Flow
+
+When a client sends `image_b64`:
+
+<Steps>
+  <Step title="Decode Base64">
+    The bridge decodes the base64 string to raw bytes using `base64.b64decode()`.
+    
+    ```python app.py (line 131-133)
+    image_bytes = base64.b64decode(req.image_b64, validate=True)
+    ```
+  </Step>
+  
+  <Step title="Detect MIME Type">
+    Magic bytes are checked to determine if the image is JPEG or PNG.
+    
+    ```python app.py (line 59-65)
+    def guess_mime(image_bytes: bytes) -> str:
+        if image_bytes.startswith(b"\xFF\xD8\xFF"):
+            return "image/jpeg"
+        if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        return "application/octet-stream"
+    ```
+  </Step>
+  
+  <Step title="Generate Token">
+    A cryptographically secure 24-character token is generated.
+    
+    ```python app.py (line 78)
+    token = secrets.token_urlsafe(24)
+    ```
+  </Step>
+  
+  <Step title="Store with TTL">
+    Image is stored in memory with expiration timestamp.
+    
+    ```python app.py (line 80-81)
+    expires_at = time.time() + IMAGE_TTL_S
+    _IMAGE_STORE[token] = (image_bytes, mime, ext, expires_at)
+    ```
+  </Step>
+  
+  <Step title="Return Public URL">
+    The bridge constructs a public URL for the NIM to fetch.
+    
+    ```python app.py (line 145)
+    image_input_url = f"{PUBLIC_BASE_URL}/v1/images/{token}.{ext}"
+    ```
+  </Step>
+</Steps>
+
+### Automatic Cleanup
+
+Expired images are removed from memory on each request:
+
+```python app.py (line 68-73)
+def cleanup_expired_images():
+    now = time.time()
+    expired = [k for k, (_, _, _, exp) in _IMAGE_STORE.items() if exp <= now]
+    for k in expired:
+        _IMAGE_STORE.pop(k, None)
+```
+
+This function is called before:
+- Storing new images (`store_temp_image`)
+- Retrieving images (`get_temp_image`)

@@ -1,97 +1,218 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "NVIDIA Cosmos Cookoff"
+description: "AI-powered robot navigation and 3D scene reconstruction using NVIDIA Cosmos Reason2 and 3D Gaussian Splatting"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative overflow-hidden dark:bg-[#0f1117] bg-white py-20">
+  <div className="max-w-6xl mx-auto px-6">
+    <div className="grid lg:grid-cols-12 gap-8 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold dark:text-white text-gray-900 mb-6">
+          Build intelligent robots with NVIDIA Cosmos
+        </h1>
+        <p className="text-lg sm:text-xl dark:text-gray-400 text-gray-600 mb-8 max-w-2xl">
+          Combine vision-language models and 3D reconstruction to create autonomous navigation systems and realistic simulation environments.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-[#8ebc46] hover:bg-[#7DAA3A] text-white font-semibold transition-colors no-underline"
+          >
+            Get Started
+          </a>
+          <a 
+            href="/introduction" 
+            className="inline-flex items-center px-6 py-3 rounded-lg border border-gray-300 dark:border-[#27272a] bg-transparent dark:hover:bg-[#1a1d27] hover:bg-gray-50 dark:text-white text-gray-900 font-semibold transition-colors no-underline"
+          >
+            Learn More
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5">
+        <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-2xl p-8 border dark:border-[#27272a] border-gray-200">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#8ebc46] flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold dark:text-white text-gray-900">Vision-Language Model</h3>
+                <p className="text-sm dark:text-gray-400 text-gray-600">Cosmos Reason2 for navigation</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#8ebc46] flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold dark:text-white text-gray-900">3D Gaussian Splatting</h3>
+                <p className="text-sm dark:text-gray-400 text-gray-600">Real-time scene reconstruction</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#8ebc46] flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold dark:text-white text-gray-900">Isaac Sim Integration</h3>
+                <p className="text-sm dark:text-gray-400 text-gray-600">USD export for simulation</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-3">Quick start</h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">Get up and running with robot navigation in minutes</p>
+  
+  <Steps>
+    <Step title="Set up NVIDIA NIM">
+      Pull and run the Cosmos Reason2 NIM container with your NGC API key:
+      
+      ```bash
+      export NGC_API_KEY="your-key-here"
+      export LOCAL_NIM_CACHE=~/.cache/nim
+      docker run -it --rm --runtime=nvidia --gpus all \
+        -e NGC_API_KEY=$NGC_API_KEY \
+        -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+        -p 8000:8000 \
+        nvcr.io/nim/nvidia/cosmos-reason2-2b:1.6.0
+      ```
+    </Step>
+    
+    <Step title="Deploy the API bridge">
+      Run the FastAPI bridge service to process navigation requests:
+      
+      ```bash
+      export BRIDGE_API_KEY="super-secret-key"
+      export NIM_BASE_URL="http://127.0.0.1:8000/v1"
+      python3 -m uvicorn app:app --host 0.0.0.0 --port 8080
+      ```
+    </Step>
+    
+    <Step title="Make your first navigation request">
+      Send an image to get navigation decisions:
+      
+      ```python
+      import requests
+      import base64
+      
+      with open("scene.jpg", "rb") as f:
+          image_b64 = base64.b64encode(f.read()).decode()
+      
+      response = requests.post(
+          "http://localhost:8080/v1/reason2/action",
+          headers={"X-API-Key": "super-secret-key"},
+          json={
+              "image_b64": image_b64,
+              "instruction": "Check if the path forward is clear"
+          }
+      )
+      
+      print(response.json())
+      # {"reasoning": "...", "action": {"move": "linear_x", "distance": 0.5}}
+      ```
+    </Step>
+  </Steps>
+</div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-3">Explore the platform</h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">Discover what you can build with NVIDIA Cosmos and 3D Gaussian Splatting</p>
+  
+  <CardGroup cols={3}>
     <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+      title="Robot Navigation"
+      icon="robot"
+      href="/navigation-api/overview"
+    >
+      Build autonomous navigation systems with vision-language models
+    </Card>
+    <Card
+      title="3D Scene Reconstruction"
+      icon="cube"
+      href="/gaussian-splatting/overview"
+    >
+      Create photorealistic 3D environments from camera captures
+    </Card>
+    <Card
+      title="Cosmos Reason2"
+      icon="brain"
+      href="/cosmos/overview"
+    >
+      Leverage NVIDIA's vision-language model for spatial reasoning
+    </Card>
+    <Card
+      title="USD Export"
+      icon="file-export"
+      href="/gaussian-splatting/usd-export"
+    >
+      Export scenes to Isaac Sim for physics simulation
+    </Card>
+    <Card
+      title="API Reference"
+      icon="code"
+      href="/api-reference/reason2-action"
+    >
+      Complete API documentation for navigation endpoints
+    </Card>
+    <Card
+      title="Training Guide"
+      icon="graduation-cap"
+      href="/gaussian-splatting/training"
+    >
+      Train 3DGUT models on custom datasets
+    </Card>
+  </CardGroup>
+</div>
 
-## Create beautiful pages
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-3">Key features</h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">Everything you need to build intelligent robotic systems</p>
+  
+  <div className="grid md:grid-cols-2 gap-6">
+    <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-xl p-6 border dark:border-[#27272a] border-gray-200">
+      <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">Vision-Language Navigation</h3>
+      <p className="text-sm dark:text-gray-400 text-gray-600">Use Cosmos Reason2 to make real-time navigation decisions based on camera input. Detect obstacles, assess clearance, and plan safe paths.</p>
+    </div>
+    <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-xl p-6 border dark:border-[#27272a] border-gray-200">
+      <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">Real-Time Reconstruction</h3>
+      <p className="text-sm dark:text-gray-400 text-gray-600">Train 3D Gaussian Splatting models with 3DGUT for photorealistic scene rendering at interactive framerates.</p>
+    </div>
+    <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-xl p-6 border dark:border-[#27272a] border-gray-200">
+      <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">Docker-Based Deployment</h3>
+      <p className="text-sm dark:text-gray-400 text-gray-600">Deploy the complete stack with NVIDIA NIM containers. No complex dependencies or environment configuration required.</p>
+    </div>
+    <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-xl p-6 border dark:border-[#27272a] border-gray-200">
+      <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">OpenAI-Compatible API</h3>
+      <p className="text-sm dark:text-gray-400 text-gray-600">Use familiar OpenAI SDK patterns to interact with Cosmos models. Drop-in replacement for existing vision-language workflows.</p>
+    </div>
+  </div>
+</div>
 
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-2xl p-10 border dark:border-[#27272a] border-gray-200 text-center">
+    <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-4">Ready to build autonomous systems?</h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-8 max-w-2xl mx-auto">
+      Start with our quickstart guide to deploy your first robot navigation system in under 10 minutes.
+    </p>
+    <a 
+      href="/quickstart" 
+      className="inline-flex items-center px-6 py-3 rounded-lg bg-[#8ebc46] hover:bg-[#7DAA3A] text-white font-semibold transition-colors no-underline"
+    >
+      Get Started Now
+    </a>
+  </div>
+</div>

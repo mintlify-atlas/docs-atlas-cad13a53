@@ -1,0 +1,381 @@
+---
+title: 'Environment Setup for 3DGUT'
+description: 'Install and configure the 3DGUT environment for 3D Gaussian Splatting training'
+---
+
+## Overview
+
+This guide walks through installing the 3DGUT (3D Gaussian with Unscented Transforms) environment, including all dependencies and system requirements.
+
+<Note>
+3DGUT requires a CUDA-capable NVIDIA GPU with at least 8GB VRAM. The installation creates a Python 3.11 conda environment with CUDA 12.8 support.
+</Note>
+
+## System Requirements
+
+### Hardware Requirements
+
+<CardGroup cols={2}>
+  <Card title="GPU" icon="microchip">
+    - NVIDIA GPU with CUDA support
+    - Minimum 8GB VRAM
+    - Recommended: RTX 3090, A100, or newer
+  </Card>
+  
+  <Card title="System" icon="server">
+    - Linux (Ubuntu 20.04+ recommended)
+    - 16GB+ system RAM
+    - 50GB free disk space
+  </Card>
+</CardGroup>
+
+### Software Prerequisites
+
+- **CUDA Toolkit**: 11.8 or higher (installed automatically)
+- **Conda**: Miniconda or Anaconda
+- **GCC/G++**: Version 11.4 (installed automatically)
+- **Git**: For repository cloning
+
+<Tip>
+This setup was tested on NVIDIA Brev environments. For local installation, ensure you have sudo privileges for system package installation.
+</Tip>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the 3dgrut repository with all submodules:
+    
+    ```bash
+    # Clone with recursive submodules
+    git clone --recursive https://github.com/nv-tlabs/3dgrut.git
+    cd 3dgrut
+    ```
+    
+    The `--recursive` flag is important as it clones required submodules:
+    - `thirdparty/tiny-cuda-nn` - Tiny CUDA Neural Networks
+    - `threedgrt_tracer/dependencies/optix-dev` - OptiX development headers
+    
+    <Note>
+    If you forget `--recursive`, initialize submodules with:
+    ```bash
+    git submodule update --init --recursive
+    ```
+    </Note>
+  </Step>
+  
+  <Step title="Run the Installation Script">
+    The installation script creates a conda environment and installs all dependencies:
+    
+    ```bash
+    # Make script executable
+    chmod +x install_env.sh
+    
+    # Run installation (creates 'threedgrut' env by default)
+    ./install_env.sh 3dgrut
+    ```
+    
+    This script performs the following:
+    
+    1. Creates a new conda environment with Python 3.11
+    2. Installs CUDA Toolkit 12.8.1
+    3. Installs GCC/G++ 11.4 compiler toolchain
+    4. Installs Python dependencies (PyTorch, NumPy, etc.)
+    5. Compiles CUDA extensions (tiny-cuda-nn, diff-gaussian-rasterization)
+    6. Registers Jupyter kernel
+    
+    <Warning>
+    Installation takes 10-20 minutes and downloads ~2GB of packages. Ensure stable internet connection.
+    </Warning>
+  </Step>
+  
+  <Step title="Activate the Environment">
+    After installation completes, activate the conda environment:
+    
+    ```bash
+    conda activate 3dgrut
+    ```
+    
+    Verify the installation:
+    
+    ```bash
+    # Check Python version
+    python --version
+    # Output: Python 3.11.x
+    
+    # Check CUDA availability
+    python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+    # Output: CUDA available: True
+    
+    # Check GPU
+    python -c "import torch; print(f'GPU: {torch.cuda.get_device_name(0)}')"
+    # Output: GPU: NVIDIA A100-SXM4-40GB (or your GPU model)
+    ```
+  </Step>
+  
+  <Step title="Verify Installation">
+    Test that all components are properly installed:
+    
+    ```bash
+    # List installed packages
+    conda list | grep -E "torch|cuda|numpy"
+    
+    # Expected packages:
+    # torch                     2.1.0+cu121
+    # torchvision               0.16.0+cu121  
+    # cuda-toolkit              12.8.1
+    # numpy                     1.26.4
+    ```
+    
+    Test CUDA extensions:
+    
+    ```python
+    # Test tiny-cuda-nn import
+    import tinycudann as tcnn
+    print("✓ tiny-cuda-nn loaded successfully")
+    
+    # Test diff-gaussian-rasterization
+    from diff_gaussian_rasterization import GaussianRasterizationSettings
+    print("✓ diff-gaussian-rasterization loaded successfully")
+    ```
+  </Step>
+</Steps>
+
+## Installed Dependencies
+
+The 3dgrut environment includes:
+
+### Core Packages
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| Python | 3.11.x | Base interpreter |
+| PyTorch | 2.1.0+cu121 | Deep learning framework |
+| CUDA Toolkit | 12.8.1 | GPU acceleration |
+| NumPy | 1.26.4 | Numerical computing |
+| Pillow | 12.0.0 | Image processing |
+
+### CUDA Libraries
+
+- **cuBLAS 12.8.4** - Linear algebra
+- **cuDNN** - Neural network primitives  
+- **cuSOLVER 11.7.3** - Linear solver
+- **cuSPARSE 12.5.8** - Sparse matrix operations
+- **NVRTC 12.8.93** - Runtime compilation
+
+### 3D and Rendering
+
+- **tiny-cuda-nn** - Fast CUDA neural network implementations
+- **diff-gaussian-rasterization** - Differentiable Gaussian rasterizer
+- **trimesh** - Mesh processing and USD export
+- **PyTorch3D** - 3D deep learning utilities
+
+### Development Tools
+
+- **CMake 4.2.3** - Build system
+- **Ninja 1.13.2** - Fast build tool
+- **GCC/G++ 11.4** - C/C++ compiler
+
+## Jupyter Notebook Setup
+
+The installation script automatically registers a Jupyter kernel named `3dgrut`.
+
+### Using the Kernel
+
+1. **Launch Jupyter**:
+   ```bash
+   conda activate 3dgrut
+   jupyter notebook
+   ```
+
+2. **Select Kernel**: Open `gs.ipynb` and select "3dgrut" from the kernel dropdown (top-right)
+
+3. **Run Cells**: Execute cells sequentially to train your first model
+
+<Tip>
+If the kernel doesn't appear, manually register it:
+```bash
+python -m ipykernel install --user --name=3dgrut --display-name="3dgrut"
+```
+</Tip>
+
+## Configuration Files
+
+Training configurations are stored in YAML files under `configs/apps/`:
+
+### NeRF Synthetic Config
+
+`configs/apps/nerf_synthetic_3dgut.yaml` contains hyperparameters optimized for synthetic scenes:
+
+```yaml
+# Example configuration (simplified)
+model:
+  type: "3dgut"
+  gaussian_dim: 32
+  sh_degree: 3
+
+training:
+  iterations: 30000
+  position_lr: 0.00016
+  feature_lr: 0.0025
+  opacity_lr: 0.05
+  scaling_lr: 0.005
+  rotation_lr: 0.001
+
+rendering:
+  image_resolution: 800
+  white_background: true
+
+export:
+  usd_format: true
+  mesh_decimation: 0.1
+```
+
+### Custom Configurations
+
+Create custom configs for your datasets by copying and modifying existing YAML files:
+
+```bash
+# Copy base config
+cp configs/apps/nerf_synthetic_3dgut.yaml configs/apps/my_scene.yaml
+
+# Edit parameters
+vim configs/apps/my_scene.yaml
+
+# Train with custom config  
+python train.py --config-name apps/my_scene.yaml path=data/my_scene
+```
+
+## Environment Variables
+
+Optional environment variables for performance tuning:
+
+```bash
+# Force specific GPU
+export CUDA_VISIBLE_DEVICES=0
+
+# Enable CUDA launch blocking for debugging
+export CUDA_LAUNCH_BLOCKING=1
+
+# Increase CUDA memory allocation
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+
+# Add to ~/.bashrc for persistence
+echo 'export CUDA_VISIBLE_DEVICES=0' >> ~/.bashrc
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="CUDA Not Found">
+    **Error**: `RuntimeError: CUDA not available`
+    
+    **Solution**:
+    ```bash
+    # Verify NVIDIA driver
+    nvidia-smi
+    
+    # Reinstall PyTorch with CUDA
+    conda activate 3dgrut
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    ```
+  </Accordion>
+  
+  <Accordion title="Compilation Errors">
+    **Error**: `error: command 'gcc' failed`
+    
+    **Solution**: Ensure GCC 11.4 is installed and active:
+    ```bash
+    # Check GCC version
+    gcc --version
+    # Should show: gcc (conda-forge) 11.4.0
+    
+    # Reinstall build tools
+    conda install -c conda-forge gcc_linux-64=11 gxx_linux-64=11
+    ```
+  </Accordion>
+  
+  <Accordion title="Submodule Issues">
+    **Error**: `fatal: not a git repository (or any of the parent directories)`
+    
+    **Solution**: Initialize submodules:
+    ```bash
+    cd 3dgrut
+    git submodule update --init --recursive
+    ```
+  </Accordion>
+  
+  <Accordion title="Out of Disk Space">
+    **Error**: `No space left on device`
+    
+    **Solution**: Clean conda cache and old environments:
+    ```bash
+    # Remove unused packages
+    conda clean --all
+    
+    # Remove old environments
+    conda env list
+    conda env remove -n old_env_name
+    ```
+  </Accordion>
+  
+  <Accordion title="Kernel Not Found in Jupyter">
+    **Error**: "3dgrut" kernel doesn't appear in Jupyter
+    
+    **Solution**: Manually register the kernel:
+    ```bash
+    conda activate 3dgrut
+    python -m ipykernel install --user --name=3dgrut --display-name="Python (3dgrut)"
+    
+    # Restart Jupyter
+    jupyter notebook
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Updating the Environment
+
+To update 3dgrut to the latest version:
+
+```bash
+# Pull latest changes
+cd 3dgrut
+git pull origin main
+
+# Update submodules  
+git submodule update --init --recursive
+
+# Reinstall environment
+conda activate 3dgrut
+pip install -e .
+```
+
+## Uninstalling
+
+To completely remove the 3dgrut environment:
+
+```bash
+# Deactivate environment
+conda deactivate
+
+# Remove conda environment
+conda env remove -n 3dgrut
+
+# Remove Jupyter kernel
+jupyter kernelspec uninstall 3dgrut
+
+# Optionally remove source code
+rm -rf 3dgrut/
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Train Your First Model" icon="dumbbell" href="/gaussian-splatting/training">
+    Start training on the NeRF Synthetic dataset
+  </Card>
+  
+  <Card title="Environment Overview" icon="info" href="/gaussian-splatting/overview">
+    Learn more about 3D Gaussian Splatting
+  </Card>
+</CardGroup>

@@ -1,0 +1,369 @@
+---
+title: 'Training 3DGUT Models'
+description: 'Train 3D Gaussian Splatting models on the NeRF Synthetic dataset'
+---
+
+## Overview
+
+This guide walks through training a 3DGUT model on the NeRF Synthetic Lego dataset. You'll learn how to configure training parameters, run the training process, and understand the outputs.
+
+<Note>
+Before starting, ensure you've completed the [Environment Setup](/gaussian-splatting/environment-setup) and have the 3dgrut conda environment activated.
+</Note>
+
+## Dataset Preparation
+
+First, download and verify the NeRF Synthetic Lego dataset:
+
+```python
+import urllib.request
+import zipfile
+import os
+from pathlib import Path
+
+# Dataset URL
+DATASET_URL = "https://huggingface.co/datasets/nerfbaselines/nerfbaselines-data/resolve/main/blender/lego.zip"
+DATASET_NAME = "lego"
+DATASET_PATH = os.path.join("data/nerf_synthetic", DATASET_NAME)
+
+def download_dataset():
+    """Download and extract the NeRF Synthetic Lego dataset."""
+    
+    # Check if already downloaded
+    if os.path.exists(DATASET_PATH) and os.path.exists(os.path.join(DATASET_PATH, "transforms_train.json")):
+        print(f"✓ Dataset already exists at {DATASET_PATH}")
+        return True
+    
+    print(f"Downloading dataset from {DATASET_URL}...")
+    zip_path = "data/lego.zip"
+    
+    # Download
+    urllib.request.urlretrieve(DATASET_URL, zip_path)
+    print(f"✓ Downloaded to {zip_path}")
+    
+    # Extract
+    print("Extracting...")
+    os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(os.path.dirname(DATASET_PATH))
+    
+    # Clean up zip file
+    os.remove(zip_path)
+    print(f"✓ Dataset extracted to {DATASET_PATH}")
+    return True
+
+download_dataset()
+```
+
+### Verify Dataset Structure
+
+The dataset should contain:
+
+- `transforms_train.json` - Training camera poses and intrinsics
+- `transforms_test.json` - Test split metadata
+- `transforms_val.json` - Validation split metadata  
+- `train/` - 100 training images (800x800 PNG files)
+- `test/` - Test images
+- `val/` - Validation images
+
+```python
+def verify_dataset():
+    """Check if dataset has the expected structure."""
+    required_files = [
+        "transforms_train.json",
+        "transforms_test.json",
+        "transforms_val.json"
+    ]
+    
+    print("Checking dataset structure...")
+    all_good = True
+    
+    for file in required_files:
+        path = os.path.join(DATASET_PATH, file)
+        if os.path.exists(path):
+            print(f"✓ {file}")
+        else:
+            print(f"✗ {file} - MISSING")
+            all_good = False
+    
+    # Check for images
+    train_dir = os.path.join(DATASET_PATH, "train")
+    if os.path.exists(train_dir):
+        num_images = len([f for f in os.listdir(train_dir) if f.endswith('.png')])
+        print(f"✓ Found {num_images} training images")
+    
+    return all_good
+
+verify_dataset()
+```
+
+## Training Configuration
+
+3DGUT uses YAML configuration files to define training parameters. The `apps/nerf_synthetic_3dgut.yaml` config is optimized for NeRF Synthetic scenes.
+
+### Key Parameters
+
+```python
+# Training parameters
+CONFIG_NAME = "apps/nerf_synthetic_3dgut.yaml"
+EXPERIMENT_NAME = "lego_3dgut_tutorial"
+N_ITERATIONS = 30000  # Reduce to 1000 for quick testing
+EXPORT_USD = True
+
+print("Training Configuration:")
+print(f"  Config: {CONFIG_NAME}")
+print(f"  Dataset: data/nerf_synthetic/lego")
+print(f"  Output: runs/{EXPERIMENT_NAME}")
+print(f"  Iterations: {N_ITERATIONS}")
+print(f"  Export USD: {EXPORT_USD}")
+```
+
+**Output:**
+```
+Training Configuration:
+  Config: apps/nerf_synthetic_3dgut.yaml
+  Dataset: data/nerf_synthetic/lego
+  Output: runs/lego_3dgut_tutorial
+  Iterations: 30000
+  Export USD: True
+
+Estimated training time: ~15.0 minutes
+```
+
+### Training Parameters Explained
+
+<AccordionGroup>
+  <Accordion title="Iterations (30,000)">
+    Number of optimization steps. Standard training uses 30,000 iterations (~15 minutes). For quick testing, reduce to 1,000 iterations (~30 seconds).
+  </Accordion>
+  
+  <Accordion title="Config File">
+    `apps/nerf_synthetic_3dgut.yaml` contains hyperparameters optimized for NeRF Synthetic scenes including learning rates, Gaussian density thresholds, and rendering settings.
+  </Accordion>
+  
+  <Accordion title="USD Export">
+    When enabled, automatically exports the trained model to USD/USDZ format after training completes, ready for import into NVIDIA Isaac Sim.
+  </Accordion>
+  
+  <Accordion title="Output Directory">
+    Checkpoints, logs, and rendered videos are saved to `runs/{experiment_name}/`. Each run creates a timestamped subdirectory.
+  </Accordion>
+</AccordionGroup>
+
+## Training Command
+
+Train the model using the command-line interface:
+
+```bash
+python train.py --config-name apps/nerf_synthetic_3dgut.yaml \
+    path=data/nerf_synthetic/lego \
+    out_dir=runs \
+    experiment_name=lego_3dgut_tutorial
+```
+
+### Full Training Script
+
+For notebook environments or automated workflows:
+
+```python
+import subprocess
+import os
+
+# Change to 3dgrut directory
+os.chdir("3dgrut")
+
+# Build training command
+cmd = [
+    "python", "train.py",
+    "--config-name", CONFIG_NAME,
+    f"path={DATASET_PATH}",
+    f"out_dir=runs",
+    f"experiment_name={EXPERIMENT_NAME}",
+    f"n_iterations={N_ITERATIONS}"
+]
+
+if EXPORT_USD:
+    cmd.append("export_usd=True")
+
+print("Training command:")
+print(" ".join(cmd))
+
+# Run training
+result = subprocess.run(cmd, capture_output=True, text=True)
+
+if result.returncode == 0:
+    print("\n✓ Training completed successfully!")
+else:
+    print(f"\n⚠️ Training failed with exit code {result.returncode}")
+    print(result.stderr)
+```
+
+## Training Process
+
+During training, you'll see output showing the optimization progress:
+
+<Steps>
+  <Step title="Initialization">
+    3D Gaussians are initialized from the point cloud. Initial Gaussian count is typically around 100,000.
+    
+    ```
+    Load Datasets
+    ✓ Loaded 100 training images
+    ✓ Loaded 200 test images
+    Initializing 3D Gaussians...
+    ✓ Initialized 102,400 Gaussians
+    ```
+  </Step>
+  
+  <Step title="Optimization">
+    Gaussians are optimized through differentiable rendering. Loss decreases as the model learns scene geometry and appearance.
+    
+    ```
+    Iteration 1000/30000 | Loss: 0.1234 | Gaussians: 105,392
+    Iteration 2000/30000 | Loss: 0.0876 | Gaussians: 108,541
+    Iteration 7000/30000 | Loss: 0.0234 | Gaussians: 124,893
+    ✓ Checkpoint saved: runs/lego_3dgut_tutorial/lego-*/ckpt_7000.pt
+    ```
+  </Step>
+  
+  <Step title="Adaptive Density Control">
+    Gaussians are automatically split, cloned, or pruned based on their contribution to the scene reconstruction.
+  </Step>
+  
+  <Step title="Final Checkpoint">
+    At 30,000 iterations, the final model is saved along with rendered validation videos.
+    
+    ```
+    Iteration 30000/30000 | Loss: 0.0089 | Gaussians: 142,756
+    ✓ Checkpoint saved: runs/lego_3dgut_tutorial/lego-*/ckpt_last.pt
+    ✓ Rendering validation video...
+    ```
+  </Step>
+  
+  <Step title="USD Export (Optional)">
+    If enabled, the model is automatically exported to USD format.
+    
+    ```
+    Exporting to USD format...
+    ✓ USD export complete: runs/lego_3dgut_tutorial/lego-*/export_last.usdz (28MB)
+    ```
+  </Step>
+</Steps>
+
+## Training Outputs
+
+After training completes, you'll find the following files in `runs/lego_3dgut_tutorial/lego-*/`:
+
+### Checkpoints
+
+- **`ckpt_7000.pt`** - Intermediate checkpoint at 7,000 iterations
+- **`ckpt_last.pt`** - Final trained model at 30,000 iterations
+
+Each checkpoint contains:
+- Gaussian parameters (position, rotation, scale, opacity, color)
+- Optimizer state
+- Training metadata
+
+### Rendered Videos
+
+- **`lego_render.mp4`** - Orbital camera rendering showing the reconstructed scene
+- Useful for quick visual quality assessment
+
+### USD Export
+
+- **`export_last.usdz`** - USD archive (~28MB) ready for NVIDIA Isaac Sim
+- Contains the complete scene as optimized geometry
+
+### Logs
+
+- Training loss curves
+- Performance metrics (FPS, memory usage)
+- Hyperparameter configuration
+
+<Note>
+Checkpoint files are typically 50-100MB depending on the number of Gaussians. USDZ exports are compressed and around 28MB for the Lego scene.
+</Note>
+
+## Training Time and GPU Requirements
+
+### Hardware Requirements
+
+<CardGroup cols={2}>
+  <Card title="Minimum" icon="microchip">
+    - NVIDIA GPU with 8GB VRAM
+    - CUDA 11.8 or higher
+    - 16GB system RAM
+  </Card>
+  
+  <Card title="Recommended" icon="rocket">
+    - NVIDIA RTX 3090 or A100
+    - CUDA 12.1 or higher  
+    - 32GB system RAM
+  </Card>
+</CardGroup>
+
+### Training Time
+
+| Iterations | GPU (RTX 3090) | GPU (A100) | Quality |
+|-----------|----------------|------------|----------|
+| 1,000     | ~30 seconds    | ~20 seconds | Quick preview |
+| 7,000     | ~3.5 minutes   | ~2.5 minutes | Good |
+| 30,000    | ~15 minutes    | ~10 minutes | Production |
+
+<Tip>
+For quick experimentation, train with 1,000 iterations to verify your setup works correctly before running full training.
+</Tip>
+
+## Monitoring Training
+
+Monitor training progress through:
+
+1. **Console Output**: Real-time loss and Gaussian count updates
+2. **TensorBoard** (if configured): Visual loss curves and rendered images
+3. **Intermediate Checkpoints**: Load and visualize at iteration 7,000
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Out of Memory (OOM)">
+    **Solution**: Reduce image resolution in the config file or train with fewer iterations initially.
+    
+    ```yaml
+    # In config YAML
+    image_resolution: 400  # Reduce from 800
+    ```
+  </Accordion>
+  
+  <Accordion title="Slow Training">
+    **Solution**: Ensure CUDA is properly installed and the correct GPU is being used.
+    
+    ```bash
+    # Verify GPU
+    nvidia-smi
+    
+    # Check CUDA
+    nvcc --version
+    ```
+  </Accordion>
+  
+  <Accordion title="Dataset Not Found">
+    **Solution**: Verify dataset path and file structure. Ensure `transforms_train.json` exists.
+    
+    ```bash
+    # Check dataset structure
+    ls -la data/nerf_synthetic/lego/
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="USD Export Guide" icon="cube" href="/gaussian-splatting/usd-export">
+    Learn how to export and use trained models in Isaac Sim
+  </Card>
+  
+  <Card title="Environment Setup" icon="download" href="/gaussian-splatting/environment-setup">
+    Set up your training environment
+  </Card>
+</CardGroup>

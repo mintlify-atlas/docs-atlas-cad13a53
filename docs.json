@@ -1,122 +1,89 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "NVIDIA Cosmos Cookoff",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#040404",
+    "light": "#8ebc46",
+    "dark": "#c2db9b"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/4d53b56a-9c81-4946-a974-7fec3791fb0e.png",
+  "logo": {
+    "light": "https://media.brand.dev/c4e5e1d3-62a0-4c8b-b82f-3f9f163c2cda.svg",
+    "dark": "https://media.brand.dev/c4e5e1d3-62a0-4c8b-b82f-3f9f163c2cda.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/suhaasteja/nvidia-cosmos-cookoff"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/suhaasteja/nvidia-cosmos-cookoff"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "3D Gaussian Splatting",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "gaussian-splatting/overview",
+              "gaussian-splatting/training",
+              "gaussian-splatting/environment-setup",
+              "gaussian-splatting/usd-export"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Robot Navigation API",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "navigation-api/overview",
+              "navigation-api/setup",
+              "navigation-api/endpoints",
+              "navigation-api/authentication"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Cosmos Reason2",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "cosmos/overview",
+              "cosmos/integration",
+              "cosmos/examples",
+              "cosmos/configuration"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/notebooks",
+              "guides/deployment",
+              "guides/troubleshooting"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Endpoints",
             "pages": [
-              "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/reason2-action",
+              "api-reference/temp-images"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

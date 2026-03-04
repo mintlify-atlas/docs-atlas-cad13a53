@@ -1,0 +1,325 @@
+---
+title: 'Code Examples'
+description: 'Real-world examples using NVIDIA Cosmos Reason2'
+---
+
+## Overview
+
+These examples demonstrate actual usage of Cosmos Reason2 from the project's source code, showing both image and video analysis capabilities.
+
+## Image Analysis Example
+
+Analyze a static image by providing an image URL:
+
+```python
+from openai import OpenAI
+
+# Initialize client pointing to local NIM container
+client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="not-used")
+
+# Define content type and URL
+content_type = "image_url"
+content_url = "https://assets.ngc.nvidia.com/products/api-catalog/phi-3-5-vision/example1b.jpg"
+
+# Create message with image and text prompt
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": content_url
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        ]
+    }
+]
+
+# Get response from model
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=False
+)
+
+assistant_message = chat_response.choices[0].message
+print(assistant_message)
+```
+
+<Note>
+  The image URL must be publicly accessible or the NIM container must have network access to reach it.
+</Note>
+
+## Video Analysis Example
+
+Process video content by providing a video URL:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="not-used")
+
+# Define video content
+content_type = "video_url"
+content_url = "https://download.samplelib.com/mp4/sample-5s.mp4"
+
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": content_url
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        ]
+    }
+]
+
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=False
+)
+
+assistant_message = chat_response.choices[0].message
+print(assistant_message)
+```
+
+## Streaming Response Example
+
+Get real-time responses as the model generates them:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="not-used")
+
+content_type = "video_url"
+content_url = "https://download.samplelib.com/mp4/sample-5s.mp4"
+
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": content_url
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        ]
+    }
+]
+
+# Enable streaming with stream=True
+stream = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=True  # Enable streaming
+)
+
+# Process chunks as they arrive
+for chunk in stream:
+    delta = chunk.choices[0].delta
+    if delta and delta.content:
+        text = delta.content
+        # Print immediately without newline to show progressive generation
+        print(text, end="", flush=True)
+
+# Final newline after streaming completes
+print()
+```
+
+<Tip>
+  Streaming is ideal for interactive applications where you want to show users the response as it's being generated, rather than waiting for the complete response.
+</Tip>
+
+## Real-World Use Cases
+
+### Interior Design Analysis
+
+From the project's housing example:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="not-used")
+
+# Analyze interior design image
+content_type = "image_url"
+content_url = "https://media.istockphoto.com/id/1990444472/photo/scandinavian-style-cozy-living-room-interior.jpg?s=1024x1024&w=is&k=20&c=kHJB-lnK-XmClW7tcWCO68POsyd6H3v0RA5IWCEODb4="
+
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": content_url
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        ]
+    }
+]
+
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=False
+)
+
+assistant_message = chat_response.choices[0].message
+print(assistant_message)
+```
+
+## Switching Between Image and Video
+
+The examples show how to easily switch between analyzing images and videos:
+
+<Tabs>
+  <Tab title="Image URL">
+    ```python
+    content_type = "image_url"
+    content_url = "https://example.com/image.jpg"
+    
+    content = [
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": content_url
+            }
+        },
+        {
+            "type": "text",
+            "text": "What is in this image?"
+        }
+    ]
+    ```
+  </Tab>
+  
+  <Tab title="Video URL">
+    ```python
+    content_type = "video_url"
+    content_url = "https://example.com/video.mp4"
+    
+    content = [
+        {
+            "type": "video_url",
+            "video_url": {
+                "url": content_url
+            }
+        },
+        {
+            "type": "text",
+            "text": "What is in this video?"
+        }
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+## Complete Example
+
+Here's a complete, runnable example combining non-streaming and streaming responses:
+
+```python
+from openai import OpenAI
+
+# Setup
+content_type = "video_url"
+content_url = "https://download.samplelib.com/mp4/sample-5s.mp4"
+
+client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="not-used")
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": content_type,
+                "video_url": {
+                    "url": content_url
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        ]
+    }
+]
+
+# Non-streaming response
+print("Non-streaming response:")
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=False,
+)
+assistant_message = chat_response.choices[0].message
+print(assistant_message)
+
+print("\nStreaming response:")
+# Streaming response
+stream = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=True,
+)
+
+for chunk in stream:
+    delta = chunk.choices[0].delta
+    if delta and delta.content:
+        text = delta.content
+        print(text, end="", flush=True)
+print()
+```
+
+<Warning>
+  Ensure the NIM container is running before executing these examples. See [Configuration](/cosmos/configuration) for deployment instructions.
+</Warning>

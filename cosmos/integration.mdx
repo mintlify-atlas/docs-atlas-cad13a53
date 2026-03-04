@@ -1,0 +1,184 @@
+---
+title: 'Integration Guide'
+description: 'Integrate NVIDIA Cosmos Reason2 using the OpenAI SDK'
+---
+
+## Using OpenAI SDK with Cosmos
+
+Cosmos Reason2 provides an OpenAI-compatible API, allowing you to use the familiar OpenAI SDK to interact with the model.
+
+### Basic Setup
+
+First, import the OpenAI client and configure it to point to your local NIM container:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://127.0.0.1:8000/v1",
+    api_key="not-used"
+)
+```
+
+<Note>
+  The `api_key` parameter is required by the OpenAI SDK but not validated by the local NIM container. You can use any placeholder value like `"not-used"`.
+</Note>
+
+## Base URL Configuration
+
+The `base_url` points to your locally running NIM container:
+
+- **Default port**: `8000`
+- **Endpoint**: `/v1` (OpenAI-compatible)
+- **Local URL**: `http://127.0.0.1:8000/v1`
+
+If you're running the container on a different host or port, adjust the `base_url` accordingly:
+
+```python
+# Remote server
+client = OpenAI(base_url="http://192.168.1.100:8000/v1", api_key="not-used")
+
+# Custom port
+client = OpenAI(base_url="http://127.0.0.1:9000/v1", api_key="not-used")
+```
+
+## NIM Container Deployment
+
+Before using the SDK, you need to deploy the Cosmos Reason2 NIM container. The container provides the inference server that the OpenAI SDK communicates with.
+
+### Prerequisites
+
+<Steps>
+  <Step title="NVIDIA GPU">
+    Requires NVIDIA GPU with Docker runtime support (`--runtime=nvidia`)
+  </Step>
+  
+  <Step title="NGC API Key">
+    Set your NGC API key as an environment variable:
+    ```bash
+    export NGC_API_KEY="your_ngc_api_key_here"
+    ```
+  </Step>
+  
+  <Step title="Docker">
+    Ensure Docker is installed with NVIDIA Container Toolkit
+  </Step>
+</Steps>
+
+### Starting the Container
+
+See the [Configuration](/cosmos/configuration) page for detailed Docker deployment instructions.
+
+## Model Selection
+
+Specify which Cosmos Reason2 variant to use in your API calls:
+
+<CodeGroup>
+```python 2B Model
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256
+)
+```
+
+```python 8B Model
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-8b",
+    messages=messages,
+    max_tokens=256
+)
+```
+</CodeGroup>
+
+## Response Modes
+
+### Non-Streaming Response
+
+Get the complete response at once:
+
+```python
+chat_response = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=False  # Default
+)
+
+assistant_message = chat_response.choices[0].message
+print(assistant_message.content)
+```
+
+### Streaming Response
+
+Receive the response incrementally as it's generated:
+
+```python
+stream = client.chat.completions.create(
+    model="nvidia/cosmos-reason2-2b",
+    messages=messages,
+    max_tokens=256,
+    stream=True  # Enable streaming
+)
+
+for chunk in stream:
+    delta = chunk.choices[0].delta
+    if delta and delta.content:
+        text = delta.content
+        print(text, end="", flush=True)
+
+print()  # Final newline
+```
+
+<Tip>
+  Use streaming for better user experience in interactive applications. It provides immediate feedback as the model generates its response.
+</Tip>
+
+## Message Format
+
+Cosmos Reason2 supports multi-modal messages with both visual and text content:
+
+```python
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "https://example.com/image.jpg"
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        ]
+    }
+]
+```
+
+### Content Types
+
+- `image_url`: For analyzing static images
+- `video_url`: For processing video content
+- `text`: For text prompts and questions
+
+## Parameters
+
+Common parameters for the `chat.completions.create()` method:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | string | Model identifier (`nvidia/cosmos-reason2-2b` or `nvidia/cosmos-reason2-8b`) |
+| `messages` | array | Conversation messages with roles and content |
+| `max_tokens` | integer | Maximum tokens to generate in the response |
+| `stream` | boolean | Enable streaming responses (`True` or `False`) |
+
+<Note>
+  For a complete list of parameters and advanced options, refer to the OpenAI API documentation. Most OpenAI parameters are supported.
+</Note>

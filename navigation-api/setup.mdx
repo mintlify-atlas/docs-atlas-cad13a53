@@ -1,0 +1,227 @@
+---
+title: "Setup"
+description: "Configure and run the Robot Navigation API bridge"
+---
+
+## Environment Variables
+
+The FastAPI bridge requires several environment variables to connect to the Cosmos Reason2 NIM and configure its behavior.
+
+### Required Variables
+
+<ParamField path="BRIDGE_API_KEY" type="string" required>
+  Secret key for authenticating API requests. Set this to a secure random string.
+  
+  ```bash
+  export BRIDGE_API_KEY="super-secret-key"
+  ```
+</ParamField>
+
+<ParamField path="NIM_BASE_URL" type="string" required>
+  Base URL of the Cosmos Reason2 NIM endpoint (without trailing slash).
+  
+  **Default**: `http://127.0.0.1:8000/v1`
+  
+  ```bash
+  export NIM_BASE_URL="http://127.0.0.1:8000/v1"
+  ```
+</ParamField>
+
+### Optional Variables
+
+<ParamField path="NIM_MODEL" type="string">
+  Model name to use for Cosmos Reason2 inference.
+  
+  **Default**: `nvidia/cosmos-reason2-2b`
+  
+  ```bash
+  export NIM_MODEL="nvidia/cosmos-reason2-2b"
+  ```
+</ParamField>
+
+<ParamField path="PUBLIC_BASE_URL" type="string">
+  Public base URL where the bridge is accessible (for temporary image hosting).
+  
+  **Default**: `http://127.0.0.1:8080`
+  
+  **Docker Note**: When running in Docker, use `http://host.docker.internal:8080` to allow the NIM container to access images hosted by the bridge.
+  
+  ```bash
+  export PUBLIC_BASE_URL="http://host.docker.internal:8080"
+  ```
+</ParamField>
+
+<ParamField path="MAX_IMAGE_BYTES" type="integer">
+  Maximum image size in bytes for base64 uploads.
+  
+  **Default**: `2097152` (2 MB)
+  
+  ```bash
+  export MAX_IMAGE_BYTES="2097152"
+  ```
+</ParamField>
+
+<ParamField path="IMAGE_TTL_S" type="integer">
+  Time-to-live for temporary images in seconds.
+  
+  **Default**: `120` (2 minutes)
+  
+  ```bash
+  export IMAGE_TTL_S="120"
+  ```
+</ParamField>
+
+## Running the Bridge
+
+### Quick Start
+
+<Steps>
+  <Step title="Set Environment Variables">
+    Create a shell script or export variables directly:
+    
+    ```bash uvicorn_cmd.sh
+    export BRIDGE_API_KEY="super-secret-key"
+    export NIM_BASE_URL="http://127.0.0.1:8000/v1"
+    export NIM_MODEL="nvidia/cosmos-reason2-2b"
+    export PUBLIC_BASE_URL="http://host.docker.internal:8080"
+    ```
+  </Step>
+  
+  <Step title="Start the Server">
+    Run the FastAPI application using uvicorn:
+    
+    ```bash
+    python3 -m uvicorn app:app --host 0.0.0.0 --port 8080
+    ```
+    
+    The server will start on `http://0.0.0.0:8080` and be accessible from all network interfaces.
+  </Step>
+  
+  <Step title="Verify the Server">
+    Check that the server is running:
+    
+    ```bash
+    curl http://localhost:8080/docs
+    ```
+    
+    This should return the FastAPI auto-generated OpenAPI documentation.
+  </Step>
+</Steps>
+
+### Complete Startup Script
+
+Combine all steps into a single script (from `jkchoi/commands/uvicorn_cmd.sh`):
+
+```bash uvicorn_cmd.sh
+export BRIDGE_API_KEY="super-secret-key"
+export NIM_BASE_URL="http://127.0.0.1:8000/v1"
+export NIM_MODEL="nvidia/cosmos-reason2-2b"
+export PUBLIC_BASE_URL="http://host.docker.internal:8080"
+python3 -m uvicorn app:app --host 0.0.0.0 --port 8080
+```
+
+## Docker Networking Considerations
+
+When running the bridge in Docker alongside the Cosmos Reason2 NIM container:
+
+### Host Access from Container
+
+<Note>
+The NIM container needs to access temporary images hosted by the bridge. Use `host.docker.internal` instead of `localhost` or `127.0.0.1` for `PUBLIC_BASE_URL`.
+</Note>
+
+```bash
+# Correct: Allows NIM container to reach the bridge
+export PUBLIC_BASE_URL="http://host.docker.internal:8080"
+
+# Incorrect: NIM container cannot reach localhost
+export PUBLIC_BASE_URL="http://127.0.0.1:8080"
+```
+
+### Docker Compose Example
+
+```yaml docker-compose.yml
+services:
+  bridge:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - BRIDGE_API_KEY=super-secret-key
+      - NIM_BASE_URL=http://nim:8000/v1
+      - PUBLIC_BASE_URL=http://bridge:8080
+    networks:
+      - cosmos-network
+  
+  nim:
+    image: nvcr.io/nvidia/cosmos-reason2:latest
+    ports:
+      - "8000:8000"
+    networks:
+      - cosmos-network
+
+networks:
+  cosmos-network:
+```
+
+## Testing the Setup
+
+### Health Check
+
+Verify the bridge is running and can connect to the NIM:
+
+```bash
+curl -X POST http://localhost:8080/v1/reason2/action \
+  -H "X-API-Key: super-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_url": "https://example.com/test-image.jpg",
+    "instruction": "Is the path clear?"
+  }'
+```
+
+### Expected Response
+
+```json
+{
+  "reasoning": "Clear path ahead with no obstacles visible",
+  "action": {
+    "move": "linear_x",
+    "distance": 0.5
+  }
+}
+```
+
+### Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="502 Bad Gateway - NIM error">
+    The bridge cannot connect to the NIM. Check:
+    
+    - Is the NIM container running?
+    - Is `NIM_BASE_URL` correct?
+    - Can the bridge reach the NIM? (try `curl $NIM_BASE_URL/health`)
+  </Accordion>
+  
+  <Accordion title="401 Unauthorized">
+    API key validation failed. Verify:
+    
+    - `BRIDGE_API_KEY` is set
+    - `X-API-Key` header matches `BRIDGE_API_KEY` exactly
+  </Accordion>
+  
+  <Accordion title="413 Payload Too Large">
+    Base64 image exceeds `MAX_IMAGE_BYTES`. Either:
+    
+    - Compress the image
+    - Increase `MAX_IMAGE_BYTES`
+    - Use `image_url` instead of `image_b64`
+  </Accordion>
+  
+  <Accordion title="404 Image not found or expired">
+    Temporary image has expired or was cleaned up. Check:
+    
+    - Is `IMAGE_TTL_S` sufficient for your workflow?
+    - Did the NIM request the image within the TTL window?
+  </Accordion>
+</AccordionGroup>

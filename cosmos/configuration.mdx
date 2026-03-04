@@ -1,0 +1,289 @@
+---
+title: 'Configuration'
+description: 'Deploy and configure NVIDIA Cosmos Reason2 NIM container'
+---
+
+## Docker Container Setup
+
+Cosmos Reason2 runs as a NIM (NVIDIA Inference Microservice) container, providing an OpenAI-compatible API server for the model.
+
+## Prerequisites
+
+<Steps>
+  <Step title="NVIDIA GPU">
+    Requires a system with NVIDIA GPU hardware and drivers installed.
+  </Step>
+  
+  <Step title="Docker with NVIDIA Runtime">
+    Install Docker with NVIDIA Container Toolkit to enable GPU access (`--runtime=nvidia`).
+  </Step>
+  
+  <Step title="NGC API Key">
+    Obtain an NGC API key from NVIDIA NGC. Set it as an environment variable:
+    ```bash
+    export NGC_API_KEY="your_ngc_api_key_here"
+    ```
+  </Step>
+  
+  <Step title="Disk Space">
+    Ensure sufficient disk space for model caching (models are several GB in size).
+  </Step>
+</Steps>
+
+## NGC API Key Setup
+
+The NGC API key is required to pull the NIM container and download model weights:
+
+```bash
+export NGC_API_KEY="your_ngc_api_key_here"
+```
+
+<Note>
+  Get your NGC API key from [NGC](https://ngc.nvidia.com/). You'll need to create an account if you don't have one.
+</Note>
+
+## Container Configuration
+
+### Choose Your Model Variant
+
+Select either the 2B or 8B parameter model:
+
+<Tabs>
+  <Tab title="2B Model">
+    ```bash
+    # Container name for bookkeeping
+    export CONTAINER_NAME="nvidia-cosmos-reason2-2b"
+    
+    # Model repository and tag
+    Repository="cosmos-reason2-2b"
+    Latest_Tag="1.6.0"
+    
+    # Full image name
+    export IMG_NAME="nvcr.io/nim/nvidia/${Repository}:${Latest_Tag}"
+    ```
+  </Tab>
+  
+  <Tab title="8B Model">
+    ```bash
+    # Container name for bookkeeping
+    export CONTAINER_NAME="nvidia-cosmos-reason2-8b"
+    
+    # Model repository and tag
+    Repository="cosmos-reason2-8b"
+    Latest_Tag="1.6.0"
+    
+    # Full image name
+    export IMG_NAME="nvcr.io/nim/nvidia/${Repository}:${Latest_Tag}"
+    ```
+  </Tab>
+</Tabs>
+
+### Model Caching Directory
+
+Set up a local cache directory to persist downloaded model weights:
+
+```bash
+# Choose a path on your system to cache the downloaded models
+export LOCAL_NIM_CACHE=~/.cache/nim
+mkdir -p "$LOCAL_NIM_CACHE"
+```
+
+<Tip>
+  Caching models locally prevents re-downloading on every container restart, significantly reducing startup time after the first run.
+</Tip>
+
+## Running the Container
+
+Complete Docker run command with all required parameters:
+
+```bash
+docker run -it --rm \
+  --name=$CONTAINER_NAME \
+  --runtime=nvidia \
+  --gpus all \
+  --shm-size=32GB \
+  --add-host=host.docker.internal:host-gateway \
+  -e NGC_API_KEY=$NGC_API_KEY \
+  -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+  -u $(id -u) \
+  -p 8000:8000 \
+  $IMG_NAME
+```
+
+## Configuration Parameters
+
+### GPU Requirements
+
+```bash
+--runtime=nvidia --gpus all
+```
+
+- `--runtime=nvidia`: Use NVIDIA container runtime for GPU access
+- `--gpus all`: Allocate all available GPUs to the container
+
+<Warning>
+  Without these flags, the container will not have access to GPU hardware and will fail to start.
+</Warning>
+
+### Memory Configuration
+
+```bash
+--shm-size=32GB
+```
+
+Shared memory size for the container. Vision-language models require significant shared memory for processing large images and videos.
+
+### Port Mappings
+
+```bash
+-p 8000:8000
+```
+
+Maps container port 8000 to host port 8000, making the API accessible at `http://127.0.0.1:8000`.
+
+To use a different host port:
+
+```bash
+-p 9000:8000  # Access API at http://127.0.0.1:9000
+```
+
+### Volume Mounts
+
+```bash
+-v "$LOCAL_NIM_CACHE:/opt/nim/.cache"
+```
+
+Mounts the local cache directory to persist model weights:
+
+- **Host path**: `$LOCAL_NIM_CACHE` (e.g., `~/.cache/nim`)
+- **Container path**: `/opt/nim/.cache`
+
+### Environment Variables
+
+```bash
+-e NGC_API_KEY=$NGC_API_KEY
+```
+
+Passes the NGC API key to the container for authentication.
+
+### User Permissions
+
+```bash
+-u $(id -u)
+```
+
+Runs the container with your user ID to ensure cached files have correct ownership.
+
+### Network Configuration
+
+```bash
+--add-host=host.docker.internal:host-gateway
+```
+
+Adds a host entry for accessing the host machine from within the container.
+
+## Complete Setup Script
+
+Here's the complete script from the source code:
+
+```bash
+# Choose a container name for bookkeeping
+export CONTAINER_NAME="nvidia-cosmos-reason2-2b" # or "nvidia-cosmos-reason2-8b"
+
+# The container name from the previous ngc registry image list command
+Repository="cosmos-reason2-2b" # or "cosmos-reason2-8b"
+Latest_Tag="1.6.0"
+
+# Choose a VLM NIM Image from NGC
+export IMG_NAME="nvcr.io/nim/nvidia/${Repository}:${Latest_Tag}"
+
+# Choose a path on your system to cache the downloaded models
+export LOCAL_NIM_CACHE=~/.cache/nim
+mkdir -p "$LOCAL_NIM_CACHE"
+
+# Start the VLM NIM
+docker run -it --rm \
+  --name=$CONTAINER_NAME \
+  --runtime=nvidia \
+  --gpus all \
+  --shm-size=32GB \
+  --add-host=host.docker.internal:host-gateway \
+  -e NGC_API_KEY=$NGC_API_KEY \
+  -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+  -u $(id -u) \
+  -p 8000:8000 \
+  $IMG_NAME
+```
+
+## Verifying Deployment
+
+Once the container starts, verify it's working:
+
+### Check Container Status
+
+```bash
+docker ps | grep cosmos-reason2
+```
+
+### Test API Endpoint
+
+```bash
+curl http://127.0.0.1:8000/v1/models
+```
+
+You should see a response listing available models.
+
+### Run a Test Query
+
+Use the Python examples from [Examples](/cosmos/examples) to verify the model is responding correctly.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Container fails to start">
+    - Verify NGC_API_KEY is set correctly
+    - Ensure NVIDIA drivers and Docker runtime are installed
+    - Check GPU availability with `nvidia-smi`
+  </Accordion>
+  
+  <Accordion title="Out of memory errors">
+    - Increase `--shm-size` (try 64GB)
+    - Ensure GPU has sufficient VRAM
+    - Consider using the 2B model instead of 8B
+  </Accordion>
+  
+  <Accordion title="Port already in use">
+    - Change the host port: `-p 9000:8000`
+    - Check for other containers using port 8000: `docker ps`
+  </Accordion>
+  
+  <Accordion title="Model download is slow">
+    - First run downloads several GB of model weights
+    - Subsequent runs use cached models from LOCAL_NIM_CACHE
+    - Ensure stable internet connection for initial download
+  </Accordion>
+</AccordionGroup>
+
+## Container Management
+
+### Stop the Container
+
+```bash
+docker stop $CONTAINER_NAME
+```
+
+### View Logs
+
+```bash
+docker logs $CONTAINER_NAME
+```
+
+### Remove Container
+
+```bash
+docker rm $CONTAINER_NAME
+```
+
+<Note>
+  The `--rm` flag in the run command automatically removes the container when it stops, but model weights remain cached in `LOCAL_NIM_CACHE`.
+</Note>

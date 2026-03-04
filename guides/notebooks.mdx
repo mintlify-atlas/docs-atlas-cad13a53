@@ -1,0 +1,170 @@
+---
+title: Jupyter Notebooks
+description: Interactive notebooks for 3D Gaussian Splatting with NVIDIA 3DGUT
+---
+
+The NVIDIA Cosmos Cookoff project includes several Jupyter notebooks demonstrating 3D Gaussian Splatting workflows using NVIDIA's 3DGUT (3D Gaussian with Unscented Transforms) framework.
+
+## Available Notebooks
+
+### gs.ipynb - Main Tutorial
+
+The primary notebook demonstrating the complete 3DGUT workflow for rendering real-world scenes in interactive simulation.
+
+<Accordion title="What it does">
+  This notebook walks through:
+  - Environment verification and setup with Conda
+  - Dataset download (NeRF Synthetic Lego dataset)
+  - Training with 3DGUT using the `train.py` script
+  - Visualization of results
+  - Export to USD format for Isaac Sim integration
+  
+  Based on the official NVIDIA Developer Blog: [How to Instantly Render Real-World Scenes in Interactive Simulation](https://developer.nvidia.com/blog/how-to-instantly-render-real-world-scenes-in-interactive-simulation/)
+</Accordion>
+
+<Accordion title="Training Command">
+  ```bash
+  python train.py --config-name apps/nerf_synthetic_3dgut.yaml \
+      path=data/nerf_synthetic/lego \
+      out_dir=runs \
+      experiment_name=lego_3dgut
+  ```
+</Accordion>
+
+#### Expected Outputs
+
+- **Model Checkpoint**: `runs/lego_3dgut_tutorial/lego-*/ckpt_last.pt`
+- **USD Export**: `runs/lego_3dgut_tutorial/lego-*/export_last.usdz` (28MB)
+- **Rendered Video**: `lego_render.mp4`
+
+<Tip>
+  The notebook includes a Google Colab badge for easy cloud execution:
+  ```markdown
+  Open In Colab: https://colab.research.google.com/github/suhaasteja/nvidia-cosmos-cookoff/blob/main/gs.ipynb
+  ```
+</Tip>
+
+### gsplat_installation.ipynb - GSplat Setup
+
+A dedicated notebook for installing the gsplat library with proper CUDA configuration.
+
+<Accordion title="Installation Steps">
+  1. **Check CUDA Version**: Verifies NVCC and PyTorch versions
+  2. **Install PyTorch 2.4.1**: Downgrades to compatible version
+     ```bash
+     pip install torch==2.4.1+cu121 torchvision==0.19.1+cu121 \
+         --index-url https://download.pytorch.org/whl/cu121
+     ```
+  3. **Install GSplat Dependencies**:
+     ```bash
+     pip install ninja numpy jaxtyping rich
+     pip install git+https://github.com/nerfstudio-project/gsplat.git@v1.4.0
+     ```
+  4. **Verify Installation**: Tests CUDA backend import
+     ```python
+     from gsplat.cuda._backend import _C
+     import gsplat
+     print(gsplat.__version__)  # Should output: 1.4.0
+     ```
+</Accordion>
+
+<Warning>
+  The notebook includes a specific PyTorch version downgrade to avoid compatibility issues. You may see a dependency conflict with `torchaudio`, which can be safely ignored.
+</Warning>
+
+### gs_interior_test_*.ipynb - Interior Scene Tests
+
+Three test notebooks (`gs_interior_test_1.ipynb`, `gs_interior_test_2.ipynb`, `gs_interior_test_3.ipynb`) demonstrating 3DGUT on interior scenes.
+
+These follow the same workflow as `gs.ipynb` but are configured for testing different interior environments.
+
+## Running the Notebooks
+
+### Local Execution with Jupyter
+
+1. **Install Environment**:
+   ```bash
+   cd 3dgrut
+   ./install_env.sh 3dgrut
+   ```
+
+2. **Activate Conda Environment**:
+   ```bash
+   conda activate 3dgrut
+   ```
+
+3. **Launch Jupyter**:
+   ```bash
+   jupyter notebook gs.ipynb
+   ```
+
+4. **Select the `3dgrut` Kernel** from the kernel dropdown (top-right)
+
+### Google Colab Execution
+
+<Steps>
+  <Step title="Open in Colab">
+    Click the Colab badge at the top of any notebook to open it in Google Colab.
+  </Step>
+  
+  <Step title="Install CondaColab">
+    ```python
+    %pip install -q condacolab
+    import condacolab
+    condacolab.install()
+    ```
+  </Step>
+  
+  <Step title="Clone Repository">
+    ```python
+    !git clone --recursive https://github.com/nv-tlabs/3dgrut.git
+    %cd 3dgrut
+    ```
+  </Step>
+  
+  <Step title="Run Setup and Training">
+    Execute all cells sequentially. The notebook handles environment setup, data download, and training automatically.
+  </Step>
+</Steps>
+
+## GPU Requirements
+
+<Card title="Recommended Specifications" icon="gpu-card">
+  - **GPU Memory**: 16GB+ VRAM recommended
+  - **CUDA Version**: 12.1+ required
+  - **Training Time**: ~2-4 hours for Lego scene (varies by GPU)
+  - **Disk Space**: ~5GB for dataset + models
+</Card>
+
+## Troubleshooting
+
+### Conda Environment Issues
+
+If the `3dgrut` kernel is not available in Jupyter:
+```bash
+# Reinstall Jupyter kernel
+conda activate 3dgrut
+python -m ipykernel install --user --name=3dgrut
+```
+
+### CUDA Out of Memory
+
+<Tip>
+  Reduce image resolution by modifying the config:
+  ```yaml
+  data_factor: 4  # Increase to 8 or 16 for lower memory usage
+  ```
+</Tip>
+
+### Submodule Not Found
+
+If you get errors about missing submodules:
+```bash
+cd 3dgrut
+git submodule update --init --recursive
+```
+
+## Next Steps
+
+- [Deployment Guide](/guides/deployment) - Learn how to deploy trained models
+- [Troubleshooting](/guides/troubleshooting) - Common issues and solutions

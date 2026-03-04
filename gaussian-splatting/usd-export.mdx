@@ -1,0 +1,534 @@
+---
+title: 'USD Export for Isaac Sim'
+description: 'Export trained 3D Gaussian Splatting models to USD format for NVIDIA Isaac Sim'
+---
+
+## Overview
+
+This guide covers exporting trained 3DGUT models to Universal Scene Description (USD/USDZ) format for use in NVIDIA Isaac Sim. USD export enables seamless integration of photorealistic reconstructed scenes into robotics simulation, digital twins, and virtual environments.
+
+<Note>
+USD export is built into the 3DGUT training pipeline and can be enabled with a single flag during training.
+</Note>
+
+## What is USD?
+
+**Universal Scene Description (USD)** is an open-source framework developed by Pixar for 3D scene interchange. It's the standard format used by NVIDIA Isaac Sim and Omniverse.
+
+### Key Benefits
+
+<CardGroup cols={2}>
+  <Card title="Interoperability" icon="arrows-rotate">
+    USD files work across NVIDIA Omniverse, Isaac Sim, Maya, Houdini, and other DCC tools.
+  </Card>
+  
+  <Card title="Scalability" icon="up-right-and-down-left-from-center">
+    Efficiently handles complex scenes with millions of primitives through lazy loading and streaming.
+  </Card>
+  
+  <Card title="Composition" icon="layer-group">
+    Layer multiple USD files to compose complex scenes from reusable components.
+  </Card>
+  
+  <Card title="Performance" icon="bolt">
+    Optimized for real-time rendering in robotics simulation and interactive applications.
+  </Card>
+</CardGroup>
+
+## Enabling USD Export
+
+USD export can be enabled in two ways:
+
+### During Training
+
+Include the export flag when starting training:
+
+```bash
+python train.py --config-name apps/nerf_synthetic_3dgut.yaml \
+    path=data/nerf_synthetic/lego \
+    out_dir=runs \
+    experiment_name=lego_3dgut_tutorial \
+    export_usd=True
+```
+
+### Programmatically
+
+```python
+import subprocess
+
+# Training parameters
+CONFIG_NAME = "apps/nerf_synthetic_3dgut.yaml"
+EXPERIMENT_NAME = "lego_3dgut_tutorial"
+EXPORT_USD = True
+
+# Build command
+cmd = [
+    "python", "train.py",
+    "--config-name", CONFIG_NAME,
+    f"path=data/nerf_synthetic/lego",
+    f"out_dir=runs",
+    f"experiment_name={EXPERIMENT_NAME}"
+]
+
+if EXPORT_USD:
+    cmd.append("export_usd=True")
+
+# Run training with USD export
+subprocess.run(cmd)
+```
+
+### Post-Training Export
+
+Export from an existing checkpoint:
+
+```bash
+python export_usd.py \
+    --checkpoint runs/lego_3dgut_tutorial/lego-*/ckpt_last.pt \
+    --output runs/lego_3dgut_tutorial/lego-*/scene.usdz
+```
+
+## Export Process
+
+The USD export pipeline converts trained 3D Gaussians into optimized mesh geometry:
+
+<Steps>
+  <Step title="Gaussian Extraction">
+    Extract 3D Gaussian parameters (position, rotation, scale, color, opacity) from the trained checkpoint.
+  </Step>
+  
+  <Step title="Mesh Generation">
+    Convert Gaussians to triangle mesh using marching cubes or alpha shapes. Gaussians with low opacity are filtered out.
+  </Step>
+  
+  <Step title="Texture Baking">
+    Bake appearance information into texture maps:
+    - Albedo/diffuse color
+    - Normal maps for surface details
+    - Roughness/metallic for PBR rendering
+  </Step>
+  
+  <Step title="Mesh Optimization">
+    Apply mesh decimation to reduce polygon count while preserving visual quality. Default decimation: 0.1 (90% reduction).
+  </Step>
+  
+  <Step title="USD Serialization">
+    Serialize mesh and materials to USD format with proper scene hierarchy and metadata.
+  </Step>
+  
+  <Step title="USDZ Packaging">
+    Package USD file, textures, and dependencies into a single USDZ archive for easy distribution.
+  </Step>
+</Steps>
+
+## Export Outputs
+
+After training completes with USD export enabled, you'll find:
+
+### USDZ Archive
+
+```
+runs/lego_3dgut_tutorial/lego-*/export_last.usdz
+```
+
+**Size**: ~28MB for the Lego scene
+
+**Contents**:
+- Mesh geometry (`.usda` or `.usdc`)
+- Texture maps (PNG/JPEG)
+- Material definitions
+- Scene hierarchy and metadata
+
+### Individual USD File (Optional)
+
+```
+runs/lego_3dgut_tutorial/lego-*/export_last.usd
+```
+
+Uncompressed USD file with external texture references.
+
+<Note>
+USDZ is recommended for distribution as it bundles all assets into a single file. USD with external textures is useful for editing and iteration.
+</Note>
+
+## USD File Structure
+
+The exported USD follows this hierarchy:
+
+```
+Scene
+├── Cameras
+│   └── Camera_0 (optional reference camera)
+├── Meshes
+│   └── gaussian_mesh
+│       ├── Geometry (triangle mesh)
+│       └── Material
+│           ├── albedo_texture.png
+│           ├── normal_texture.png
+│           └── roughness_texture.png
+└── Lights
+    └── DefaultLight (for preview)
+```
+
+### Inspecting USD Files
+
+Use `usdview` (part of USD toolkit) to inspect exported files:
+
+```bash
+# Install USD tools
+pip install usd-core
+
+# View USD file
+usdview runs/lego_3dgut_tutorial/lego-*/export_last.usdz
+```
+
+## Loading in NVIDIA Isaac Sim
+
+Import the exported USDZ file into NVIDIA Isaac Sim for robotics simulation:
+
+<Steps>
+  <Step title="Launch Isaac Sim">
+    Open NVIDIA Isaac Sim (version 2023.1 or later).
+  </Step>
+  
+  <Step title="Create New Stage">
+    File → New or open an existing simulation scene.
+  </Step>
+  
+  <Step title="Import USDZ">
+    Navigate to **Create → References → Add Reference**
+    
+    Or use Python:
+    ```python
+    import omni.usd
+    from pxr import Usd, UsdGeom
+    
+    # Get current stage
+    stage = omni.usd.get_context().get_stage()
+    
+    # Add reference to imported scene
+    scene_prim = stage.DefinePrim("/World/GaussianScene", "Xform")
+    scene_prim.GetReferences().AddReference(
+        "runs/lego_3dgut_tutorial/lego-*/export_last.usdz"
+    )
+    ```
+  </Step>
+  
+  <Step title="Position and Scale">
+    Adjust the imported scene's transform:
+    ```python
+    xform = UsdGeom.Xformable(scene_prim)
+    xform.AddTranslateOp().Set((0, 0, 0))
+    xform.AddScaleOp().Set((1.0, 1.0, 1.0))
+    xform.AddRotateXYZOp().Set((0, 0, 0))
+    ```
+  </Step>
+  
+  <Step title="Configure Physics (Optional)">
+    Add physics properties for interaction:
+    ```python
+    from pxr import UsdPhysics
+    
+    # Add collision shape
+    collision_api = UsdPhysics.CollisionAPI.Apply(scene_prim)
+    
+    # Add rigid body (for dynamic objects)
+    rigid_body_api = UsdPhysics.RigidBodyAPI.Apply(scene_prim)
+    rigid_body_api.CreateRigidBodyEnabledAttr(True)
+    ```
+  </Step>
+  
+  <Step title="Test Simulation">
+    Click **Play** to start simulation and verify the scene renders correctly with physics interactions.
+  </Step>
+</Steps>
+
+### Isaac Sim Integration Example
+
+Complete Python script for loading a 3DGUT scene in Isaac Sim:
+
+```python
+import omni
+from omni.isaac.kit import SimulationApp
+
+# Launch Isaac Sim
+simulation_app = SimulationApp({"headless": False})
+
+import omni.usd
+from pxr import Usd, UsdGeom, UsdPhysics, Gf
+
+# Create new stage
+stage = omni.usd.get_context().get_stage()
+stage = Usd.Stage.CreateNew("scene.usd")
+
+# Add ground plane
+ground = UsdGeom.Mesh.Define(stage, "/World/Ground")
+ground.CreatePointsAttr([(-10, -10, 0), (10, -10, 0), (10, 10, 0), (-10, 10, 0)])
+ground.CreateFaceVertexCountsAttr([4])
+ground.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
+
+# Import 3DGUT scene
+scene_path = "/World/LegoScene"
+scene_prim = stage.DefinePrim(scene_path, "Xform")
+scene_prim.GetReferences().AddReference(
+    "runs/lego_3dgut_tutorial/lego-*/export_last.usdz"
+)
+
+# Position scene
+xform = UsdGeom.Xformable(scene_prim)
+xform.AddTranslateOp().Set(Gf.Vec3d(0, 0, 0.5))
+xform.AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, 1.0))
+
+# Add lighting
+light = UsdLux.DistantLight.Define(stage, "/World/Light")
+light.CreateIntensityAttr(1000)
+
+# Save and run
+stage.Save()
+omni.usd.get_context().open_stage("scene.usd")
+
+# Start simulation
+while simulation_app.is_running():
+    simulation_app.update()
+
+simulation_app.close()
+```
+
+## Use Cases in Isaac Sim
+
+### 1. Robot Navigation Training
+
+Import reconstructed real-world environments for robot navigation:
+
+```python
+# Add robot to scene
+robot_prim = stage.DefinePrim("/World/Robot", "Xform")
+robot_prim.GetReferences().AddReference(
+    "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.0/Isaac/Robots/Carter/carter_v1.usd"
+)
+
+# Train robot in reconstructed environment
+from omni.isaac.core.robots import Robot
+from omni.isaac.navigation import NavigationController
+
+robot = Robot("/World/Robot")
+nav_controller = NavigationController(robot)
+nav_controller.set_goal(target_position=(5.0, 3.0, 0.0))
+```
+
+### 2. Manipulation Testing
+
+Test robot grasping on photorealistic object reconstructions:
+
+```python
+# Add manipulator
+franka_prim = stage.DefinePrim("/World/Franka", "Xform")
+franka_prim.GetReferences().AddReference(
+    "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.0/Isaac/Robots/Franka/franka.usd"
+)
+
+# Target: reconstructed Lego object
+target_pos = scene_prim.GetAttribute("xformOp:translate").Get()
+```
+
+### 3. Digital Twin Simulation
+
+Create digital twins of factory floors or warehouses:
+
+- Import full-scale scans
+- Add robot fleets  
+- Simulate logistics and workflows
+- Test edge cases before real-world deployment
+
+### 4. Sensor Simulation
+
+Generate synthetic sensor data (RGB, depth, LiDAR) from reconstructed scenes for training perception models:
+
+```python
+import omni.isaac.sensor as sensor
+
+# Add camera
+camera = sensor.Camera(
+    prim_path="/World/Camera",
+    position=(2.0, 2.0, 2.0),
+    target=(0.0, 0.0, 0.0)
+)
+
+# Capture synthetic data
+rgb_image = camera.get_rgba()
+depth_image = camera.get_depth()
+```
+
+## Advanced Export Options
+
+### Mesh Decimation
+
+Control polygon count with decimation ratio:
+
+```bash
+python train.py \
+    --config-name apps/nerf_synthetic_3dgut.yaml \
+    path=data/nerf_synthetic/lego \
+    export_usd=True \
+    mesh_decimation=0.05  # More aggressive decimation (95% reduction)
+```
+
+**Decimation Ratios**:
+- `1.0` - No decimation (highest quality, largest file)
+- `0.1` - Default (90% reduction, balanced)
+- `0.01` - Aggressive (99% reduction, lower quality)
+
+### Texture Resolution
+
+Adjust texture map resolution:
+
+```bash
+python train.py \
+    --config-name apps/nerf_synthetic_3dgut.yaml \
+    path=data/nerf_synthetic/lego \
+    export_usd=True \
+    texture_resolution=2048  # 2K textures (default: 1024)
+```
+
+### Material Properties
+
+Customize PBR material properties in the export script:
+
+```python
+# export_usd.py modifications
+material = UsdShade.Material.Define(stage, f"{prim_path}/Material")
+pbr_shader = UsdShade.Shader.Define(stage, f"{prim_path}/Material/PBRShader")
+
+# Adjust material properties
+pbr_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.5)
+pbr_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+pbr_shader.CreateInput("ior", Sdf.ValueTypeNames.Float).Set(1.45)
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="USD Export Failed">
+    **Error**: `Failed to export USD: trimesh not found`
+    
+    **Solution**: Install trimesh with USD support:
+    ```bash
+    conda activate 3dgrut
+    pip install trimesh[easy]
+    pip install usd-core
+    ```
+  </Accordion>
+  
+  <Accordion title="Large File Size">
+    **Issue**: USDZ file is too large (>100MB)
+    
+    **Solution**: Increase mesh decimation and reduce texture resolution:
+    ```bash
+    python train.py \
+        export_usd=True \
+        mesh_decimation=0.05 \
+        texture_resolution=512
+    ```
+  </Accordion>
+  
+  <Accordion title="Missing Textures in Isaac Sim">
+    **Issue**: Scene appears gray or untextured
+    
+    **Solution**: Verify texture paths in USD file:
+    ```bash
+    # Inspect USD
+    usdcat export_last.usdz | grep texture
+    
+    # Textures should be relative paths within USDZ
+    ```
+    
+    Re-export with embedded textures:
+    ```bash
+    python export_usd.py \
+        --checkpoint ckpt_last.pt \
+        --embed-textures
+    ```
+  </Accordion>
+  
+  <Accordion title="Scene Scale Issues">
+    **Issue**: Imported scene is too large or too small
+    
+    **Solution**: Adjust scale during import:
+    ```python
+    xform = UsdGeom.Xformable(scene_prim)
+    xform.AddScaleOp().Set(Gf.Vec3d(0.1, 0.1, 0.1))  # Scale down 10x
+    ```
+  </Accordion>
+  
+  <Accordion title="Physics Not Working">
+    **Issue**: Robot passes through reconstructed geometry
+    
+    **Solution**: Add collision mesh:
+    ```python
+    from pxr import UsdPhysics
+    
+    collision_api = UsdPhysics.CollisionAPI.Apply(scene_prim)
+    mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(scene_prim)
+    mesh_collision_api.CreateApproximationAttr("convexHull")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimization
+
+### For Real-Time Simulation
+
+1. **Reduce Polygon Count**: Use aggressive decimation (0.01-0.05)
+2. **Lower Texture Resolution**: 512x512 or 1024x1024 textures
+3. **Simplify Materials**: Use simpler shaders without transparency
+4. **LOD Hierarchy**: Create multiple LOD levels for distant views
+
+### For Visual Quality
+
+1. **Minimal Decimation**: Use 0.5-1.0 decimation ratios
+2. **High-Res Textures**: 2048x2048 or 4096x4096
+3. **PBR Materials**: Full physically-based rendering with all maps
+4. **Subdivision**: Apply Catmull-Clark subdivision in post-processing
+
+## Batch Export
+
+Export multiple trained models in batch:
+
+```python
+import glob
+import subprocess
+
+# Find all checkpoints
+checkpoints = glob.glob("runs/*/*/ckpt_last.pt")
+
+for ckpt in checkpoints:
+    output = ckpt.replace("ckpt_last.pt", "export.usdz")
+    cmd = [
+        "python", "export_usd.py",
+        "--checkpoint", ckpt,
+        "--output", output,
+        "--mesh-decimation", "0.1"
+    ]
+    subprocess.run(cmd)
+    print(f"✓ Exported {output}")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Isaac Sim Documentation" icon="book" href="https://docs.nvidia.com/isaac/doc/index.html">
+    Learn more about NVIDIA Isaac Sim capabilities
+  </Card>
+  
+  <Card title="USD Documentation" icon="file-code" href="https://graphics.pixar.com/usd/docs/index.html">
+    Deep dive into Universal Scene Description
+  </Card>
+  
+  <Card title="Training Guide" icon="dumbbell" href="/gaussian-splatting/training">
+    Return to the training guide
+  </Card>
+  
+  <Card title="Overview" icon="info" href="/gaussian-splatting/overview">
+    Learn more about 3D Gaussian Splatting
+  </Card>
+</CardGroup>

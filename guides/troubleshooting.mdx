@@ -1,0 +1,384 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for NVIDIA Cosmos Cookoff
+---
+
+This guide covers common issues you might encounter when working with the NVIDIA Cosmos Cookoff project and their solutions.
+
+## NIM Container Issues
+
+### Docker/GPU Not Detected
+
+<Accordion title="Error: NVIDIA runtime not found">
+  **Symptom**: Docker fails to start with `could not select device driver "nvidia"` or similar
+  
+  **Solution**:
+  1. Install NVIDIA Container Toolkit:
+     ```bash
+     # Ubuntu/Debian
+     distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+     curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | sudo apt-key add -
+     curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+       sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+     sudo apt-get update
+     sudo apt-get install -y nvidia-container-toolkit
+     sudo systemctl restart docker
+     ```
+  
+  2. Verify GPU access:
+     ```bash
+     docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
+     ```
+</Accordion>
+
+### NIM Container Startup Fails
+
+<Accordion title="Error: NGC_API_KEY invalid or expired">
+  **Symptom**: Container exits with authentication error
+  
+  **Solution**:
+  1. Verify your NGC API key is valid: [NGC API Keys](https://ngc.nvidia.com/setup/api-key)
+  2. Generate a new key if needed
+  3. Export the key before running:
+     ```bash
+     export NGC_API_KEY="your-valid-key-here"
+     ```
+</Accordion>
+
+<Accordion title="Container exits with OOM (Out of Memory)">
+  **Symptom**: Docker container terminates unexpectedly, logs show CUDA out of memory
+  
+  **Solution**:
+  1. **Use the 2B model instead of 8B**:
+     ```bash
+     export Repository="cosmos-reason2-2b"  # Requires less VRAM
+     ```
+  
+  2. **Increase shared memory**:
+     ```bash
+     docker run --shm-size=32GB ...  # Try 64GB if available
+     ```
+  
+  3. **Check GPU memory availability**:
+     ```bash
+     nvidia-smi  # Should show available VRAM
+     ```
+</Accordion>
+
+### Model Download Issues
+
+<Accordion title="Model download is slow or times out">
+  **Symptom**: First container startup takes very long or fails during model download
+  
+  **Solution**:
+  1. **Ensure sufficient disk space**:
+     ```bash
+     df -h $LOCAL_NIM_CACHE  # Should have 15GB+ free
+     ```
+  
+  2. **Check network connectivity** to NGC:
+     ```bash
+     curl -I https://nvcr.io/
+     ```
+  
+  3. **Pre-download models** using NGC CLI:
+     ```bash
+     ngc registry model download-version "nvidia/cosmos-reason2-2b:1.6.0"
+     ```
+</Accordion>
+
+## API Bridge Issues
+
+### Connection Refused to NIM
+
+<Accordion title="Error: 502 NIM error (connection refused)">
+  **Symptom**: API Bridge returns `502` errors when making requests
+  
+  **Solution**:
+  1. **Verify NIM container is running**:
+     ```bash
+     docker ps | grep cosmos-reason2
+     ```
+  
+  2. **Test NIM health endpoint**:
+     ```bash
+     curl http://localhost:8000/v1/health
+     ```
+  
+  3. **Check NIM_BASE_URL configuration**:
+     ```bash
+     # Should point to NIM container
+     echo $NIM_BASE_URL  # http://127.0.0.1:8000/v1
+     ```
+  
+  4. **If using Docker for API Bridge**, use host networking:
+     ```bash
+     export NIM_BASE_URL="http://host.docker.internal:8000/v1"
+     ```
+</Accordion>
+
+### Authentication Failures
+
+<Accordion title="Error: 401 Unauthorized">
+  **Symptom**: Requests to API Bridge return `401 Unauthorized`
+  
+  **Solution**:
+  1. **Check API key header**:
+     ```bash
+     curl -H "X-Api-Key: super-secret-key" \
+       http://localhost:8080/v1/reason2/action
+     ```
+  
+  2. **Verify BRIDGE_API_KEY environment variable**:
+     ```python jkchoi/scripts/app.py (line 18)
+     API_KEY = os.environ.get("BRIDGE_API_KEY", "")
+     ```
+  
+  3. **Ensure key matches** in client and server
+</Accordion>
+
+### Image Upload Issues
+
+<Accordion title="Error: 413 Image too large">
+  **Symptom**: Image upload fails with `413 Payload Too Large`
+  
+  **Root Cause**:
+  ```python jkchoi/scripts/app.py (line 24)
+  MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(2 * 1024 * 1024)))
+  ```
+  Default limit is 2MB.
+  
+  **Solution**:
+  1. **Increase the limit** if needed:
+     ```bash
+     export MAX_IMAGE_BYTES="5242880"  # 5MB
+     ```
+  
+  2. **Compress images** before upload:
+     ```python
+     from PIL import Image
+     img = Image.open('large.jpg')
+     img.save('compressed.jpg', quality=85, optimize=True)
+     ```
+  
+  3. **Resize images**:
+     ```python
+     img.thumbnail((1024, 1024))
+     ```
+</Accordion>
+
+<Accordion title="Error: 404 Image not found or expired">
+  **Symptom**: Image token returns `404` when accessed
+  
+  **Root Cause**:
+  ```python jkchoi/scripts/app.py (line 27)
+  IMAGE_TTL_S = int(os.environ.get("IMAGE_TTL_S", "120"))
+  ```
+  Images expire after 2 minutes by default.
+  
+  **Solution**:
+  1. **Increase TTL** for slower operations:
+     ```bash
+     export IMAGE_TTL_S="300"  # 5 minutes
+     ```
+  
+  2. **Process images immediately** after upload
+  
+  3. **Check expiration logic**:
+     ```python jkchoi/scripts/app.py (lines 68-73)
+     def cleanup_expired_images():
+         now = time.time()
+         expired = [k for k, (_, _, _, exp) in _IMAGE_STORE.items() if exp <= now]
+         for k in expired:
+             _IMAGE_STORE.pop(k, None)
+     ```
+</Accordion>
+
+<Warning>
+  **Image Storage**: Images are stored in-memory and will be lost if the API Bridge restarts. For persistent storage, implement a Redis or database backend.
+</Warning>
+
+## Notebook Issues
+
+### Environment Setup Failures
+
+<Accordion title="install_env.sh fails with CUDA errors">
+  **Symptom**: Environment installation script fails during CUDA package installation
+  
+  **Solution**:
+  1. **Ensure CUDA is installed** on the system:
+     ```bash
+     nvcc --version
+     ```
+  
+  2. **Check conda channels**:
+     ```bash
+     conda config --show channels
+     # Should include nvidia, conda-forge
+     ```
+  
+  3. **Install CUDA toolkit manually**:
+     ```bash
+     conda install -c nvidia/label/cuda-12.8.1 cuda-toolkit
+     ```
+</Accordion>
+
+<Accordion title="Jupyter kernel not found">
+  **Symptom**: "3dgrut" kernel is not available in Jupyter dropdown
+  
+  **Solution**:
+  ```bash
+  # Activate environment and install kernel
+  conda activate 3dgrut
+  python -m ipykernel install --user --name=3dgrut
+  
+  # Restart Jupyter
+  jupyter notebook
+  ```
+</Accordion>
+
+### Training Failures
+
+<Accordion title="CUDA Out of Memory during training">
+  **Symptom**: Training crashes with "CUDA out of memory" error
+  
+  **Solution**:
+  1. **Reduce image resolution** in config:
+     ```yaml
+     data_factor: 8  # Higher = lower resolution, less memory
+     ```
+  
+  2. **Reduce batch size** if configured
+  
+  3. **Use gradient checkpointing** (check 3DGUT docs)
+  
+  4. **Monitor GPU usage**:
+     ```bash
+     watch -n 1 nvidia-smi
+     ```
+</Accordion>
+
+<Accordion title="Submodule errors">
+  **Symptom**: Import errors or missing files from `thirdparty/` directory
+  
+  **Solution**:
+  ```bash
+  cd 3dgrut
+  git submodule update --init --recursive
+  ```
+</Accordion>
+
+### Google Colab Issues
+
+<Accordion title="CondaColab installation fails">
+  **Symptom**: Conda not available after installing condacolab
+  
+  **Solution**:
+  ```python
+  # Install and restart runtime
+  %pip install -q condacolab
+  import condacolab
+  condacolab.install()
+  # Runtime will restart automatically
+  ```
+</Accordion>
+
+<Accordion title="Colab session times out during training">
+  **Symptom**: Long training runs fail due to session timeout
+  
+  **Solution**:
+  1. **Save checkpoints frequently** (already configured in notebooks)
+  2. **Use Colab Pro** for longer sessions
+  3. **Reduce data_factor** to speed up training:
+     ```bash
+     --data_factor 4  # Faster training
+     ```
+</Accordion>
+
+## Performance Issues
+
+### Slow Inference
+
+<Accordion title="NIM responses are slow (>5s per request)">
+  **Possible Causes**:
+  - Model not warmed up (first few requests)
+  - GPU memory fragmentation
+  - Large input images
+  - 8B model on limited VRAM
+  
+  **Solutions**:
+  1. **Warm up the model** after startup:
+     ```bash
+     # Send a few test requests
+     for i in {1..5}; do
+       curl -X POST http://localhost:8000/v1/chat/completions \
+         -H "Content-Type: application/json" \
+         -d '{"model": "nvidia/cosmos-reason2-2b", "messages": [...]}'
+     done
+     ```
+  
+  2. **Use the 2B model** for faster inference
+  
+  3. **Reduce image resolution** before sending:
+     ```python
+     img = Image.open('input.jpg')
+     img.thumbnail((1024, 1024))
+     ```
+</Accordion>
+
+## Logging and Debugging
+
+### Enable Verbose Logging
+
+<CodeGroup>
+```bash NIM Container Logs
+docker logs -f nvidia-cosmos-reason2-2b
+```
+
+```bash API Bridge Logs
+# Add logging to app.py
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+```bash Uvicorn Debug Mode
+uvicorn app:app --host 0.0.0.0 --port 8080 --log-level debug
+```
+</CodeGroup>
+
+### Common Error Messages
+
+<Warning>
+  **"NIM error 502"**: Check NIM container logs for the actual error:
+  ```bash
+  docker logs nvidia-cosmos-reason2-2b --tail 50
+  ```
+</Warning>
+
+<Warning>
+  **"Model output was not valid JSON"**: The model's response format changed. Check the prompt in `app.py:151-164`.
+</Warning>
+
+## Getting Help
+
+If you're still experiencing issues:
+
+1. **Check NIM container logs** for detailed error messages
+2. **Verify all environment variables** are set correctly
+3. **Test each component independently** (NIM first, then API Bridge)
+4. **Check GPU availability**: `nvidia-smi`
+5. **Review the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/)**
+
+<Card title="Need More Help?" icon="question">
+  Open an issue on the GitHub repository with:
+  - Full error message and stack trace
+  - Environment details (GPU model, CUDA version, Docker version)
+  - Relevant log excerpts
+  - Steps to reproduce
+</Card>
+
+## Next Steps
+
+- [Deployment Guide](/guides/deployment) - Deploy to production
+- [Notebooks Guide](/guides/notebooks) - Work with training notebooks
+- [API Reference](/api-reference/reason2-action) - API endpoint details

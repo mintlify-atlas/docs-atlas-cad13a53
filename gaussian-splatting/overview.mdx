@@ -1,0 +1,123 @@
+---
+title: '3D Gaussian Splatting Overview'
+description: 'Learn about 3D Gaussian Splatting and 3DGUT for photorealistic scene reconstruction'
+---
+
+## What is 3D Gaussian Splatting?
+
+3D Gaussian Splatting is a cutting-edge technique for reconstructing and rendering 3D scenes from 2D images. Unlike traditional mesh-based or volumetric representations, it represents scenes as collections of 3D Gaussian primitives that can be rendered in real-time with photorealistic quality.
+
+## 3DGUT: 3D Gaussian with Unscented Transforms
+
+**3DGUT** (3D Gaussian with Unscented Transforms) is NVIDIA's implementation that enhances the standard Gaussian Splatting approach. This method enables:
+
+- **Real-time rendering** of complex 3D scenes
+- **Photorealistic quality** reconstructions from multi-view images
+- **Efficient optimization** using Unscented Transform techniques
+- **USD export** for seamless integration with NVIDIA Isaac Sim
+
+<Note>
+3DGUT was developed by NVIDIA's Toronto AI Lab (nv-tlabs) and represents a significant advancement in neural scene reconstruction.
+</Note>
+
+## How It Works
+
+<Steps>
+  <Step title="Scene Capture">
+    Multi-view images are captured from different camera angles around a scene. The NeRF Synthetic dataset, for example, contains 100 training images of objects like the iconic Lego bulldozer.
+  </Step>
+  
+  <Step title="Gaussian Initialization">
+    3D Gaussians are initialized from the input dataset. Each Gaussian primitive has parameters for position, rotation, scale, opacity, and color.
+  </Step>
+  
+  <Step title="Optimization">
+    The 3DGUT method optimizes Gaussian parameters through differentiable rendering, using the Unscented Transform to improve convergence and stability.
+  </Step>
+  
+  <Step title="USD Export">
+    Trained models can be exported to USD/USDZ format for use in NVIDIA Isaac Sim, enabling robotics simulation and digital twin applications.
+  </Step>
+</Steps>
+
+## Key Benefits
+
+<CardGroup cols={2}>
+  <Card title="Real-Time Performance" icon="gauge-high">
+    Render photorealistic scenes at interactive frame rates, enabling real-time visualization and simulation.
+  </Card>
+  
+  <Card title="Photorealistic Quality" icon="sparkles">
+    Achieve high-fidelity reconstructions that capture fine details, reflections, and complex lighting.
+  </Card>
+  
+  <Card title="Compact Representation" icon="compress">
+    Efficient scene representation that balances quality with memory usage (~28MB for complex scenes).
+  </Card>
+  
+  <Card title="Isaac Sim Integration" icon="robot">
+    Seamless export to USD format for robotics simulation, digital twins, and virtual environments.
+  </Card>
+</CardGroup>
+
+## When to Use 3D Gaussian Splatting
+
+3D Gaussian Splatting with 3DGUT is ideal for:
+
+### Robotics Simulation
+
+Reconstruct real-world environments for robot training and testing in NVIDIA Isaac Sim. Import scanned spaces directly into simulation for realistic behavior modeling.
+
+### Digital Twins
+
+Create photorealistic digital replicas of physical spaces, assets, or products for visualization, analysis, and virtual prototyping.
+
+### Virtual Production
+
+Capture real locations and integrate them into virtual production pipelines with real-time rendering capabilities.
+
+### Scene Understanding
+
+Train computer vision models on reconstructed 3D scenes with accurate geometry and appearance.
+
+## Training Dataset
+
+This tutorial uses the **NeRF Synthetic Lego** dataset, which provides:
+
+- 100 training images at 800x800 resolution
+- Ground truth camera poses and intrinsics
+- Clean synthetic scenes perfect for testing
+- Available from [Hugging Face](https://huggingface.co/datasets/nerfbaselines/nerfbaselines-data)
+
+<Note>
+Training on the Lego dataset takes approximately 15 minutes with 30,000 iterations on a modern GPU.
+</Note>
+
+## Architecture
+
+3DGUT builds on the 3D Gaussian Splatting framework with key enhancements:
+
+- **Unscented Transform**: Improves optimization stability and convergence
+- **Differentiable Rasterization**: CUDA-accelerated rendering pipeline
+- **Adaptive Density Control**: Automatically adjusts Gaussian count during training
+- **USD Export Pipeline**: Direct conversion to Universal Scene Description format
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="download" href="/gaussian-splatting/environment-setup">
+    Install 3DGUT and set up your training environment
+  </Card>
+  
+  <Card title="Train Your First Model" icon="dumbbell" href="/gaussian-splatting/training">
+    Train a 3DGUT model on the NeRF Synthetic dataset
+  </Card>
+  
+  <Card title="USD Export" icon="cube" href="/gaussian-splatting/usd-export">
+    Export trained models to USD for Isaac Sim
+  </Card>
+  
+  <Card title="NVIDIA Developer Blog" icon="newspaper" href="https://developer.nvidia.com/blog/how-to-instantly-render-real-world-scenes-in-interactive-simulation/">
+    Read the official tutorial on rendering real-world scenes
+  </Card>
+</CardGroup>

@@ -1,0 +1,89 @@
+{
+  "projectType": "ai-ml",
+  "projectName": "NVIDIA Cosmos Cookoff",
+  "projectDescription": "AI-powered robot navigation and 3D scene reconstruction using NVIDIA Cosmos Reason2 and 3D Gaussian Splatting",
+  "theme": "aspen",
+  "primaryColor": "#040404",
+  "lightColor": "#8ebc46",
+  "darkColor": "#c2db9b",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "3D Gaussian Splatting",
+            "pages": [
+              "gaussian-splatting/overview",
+              "gaussian-splatting/training",
+              "gaussian-splatting/environment-setup",
+              "gaussian-splatting/usd-export"
+            ]
+          },
+          {
+            "group": "Robot Navigation API",
+            "pages": [
+              "navigation-api/overview",
+              "navigation-api/setup",
+              "navigation-api/endpoints",
+              "navigation-api/authentication"
+            ]
+          },
+          {
+            "group": "Cosmos Reason2",
+            "pages": [
+              "cosmos/overview",
+              "cosmos/integration",
+              "cosmos/examples",
+              "cosmos/configuration"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/notebooks",
+              "guides/deployment",
+              "guides/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/reason2-action",
+              "api-reference/temp-images"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "3D Gaussian Splatting with 3DGUT for scene reconstruction",
+    "USD export for Isaac Sim integration",
+    "FastAPI bridge for Cosmos Reason2 vision-language model",
+    "Robot vacuum navigation with obstacle detection",
+    "Temporary image hosting for VLM processing",
+    "OpenAI-compatible API interface",
+    "Docker-based deployment with NVIDIA NIM"
+  ],
+  "publicApiSurface": [
+    "POST /v1/reason2/action - Robot navigation decision endpoint",
+    "GET /v1/images/{token}.{ext} - Temporary image retrieval",
+    "nvidia/cosmos-reason2-2b - Vision-language model",
+    "nvidia/cosmos-reason2-8b - Larger vision-language model",
+    "3DGUT training pipeline - train.py with nerf_synthetic config",
+    "USD export - export_last.usdz for Isaac Sim"
+  ]
+}

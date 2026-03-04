@@ -323,3 +323,86 @@ print()
 <Warning>
   Ensure the NIM container is running before executing these examples. See [Configuration](/cosmos/configuration) for deployment instructions.
 </Warning>
+
+## Advanced Video Processing
+
+For more control over video processing, you can use the `extra_body` parameter to configure media processing options:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="not-used")
+
+# Get the model identifier dynamically
+model = client.models.list().data[0].id
+
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant."
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "video_url",
+                "video_url": {
+                    "url": "https://download.samplelib.com/mp4/sample-5s.mp4"
+                }
+            },
+            {
+                "type": "text",
+                "text": "What is in this video?"
+            }
+        ]
+    }
+]
+
+chat_response = client.chat.completions.create(
+    model=model,
+    messages=messages,
+    max_tokens=1024,
+    stream=False,
+    extra_body={
+        # Configure image processing parameters
+        "mm_processor_kwargs": {
+            "size": {
+                "shortest_edge": 1568,
+                "longest_edge": 262144
+            }
+        },
+        # Configure video frame extraction
+        "media_io_kwargs": {
+            "video": {
+                "fps": 1.0  # Extract 1 frame per second
+                # Alternatively: "num_frames": 10  # Extract fixed number of frames
+            }
+        }
+    }
+)
+
+assistant_message = chat_response.choices[0].message
+print(assistant_message)
+```
+
+### Video Processing Parameters
+
+<ParamField path="extra_body.mm_processor_kwargs.size.shortest_edge" type="integer" default="1568">
+  Minimum edge size for image/video frame processing
+</ParamField>
+
+<ParamField path="extra_body.mm_processor_kwargs.size.longest_edge" type="integer" default="262144">
+  Maximum edge size for image/video frame processing
+</ParamField>
+
+<ParamField path="extra_body.media_io_kwargs.video.fps" type="float">
+  Frames per second to extract from video. Use this OR `num_frames`, not both.
+</ParamField>
+
+<ParamField path="extra_body.media_io_kwargs.video.num_frames" type="integer">
+  Fixed number of frames to extract from video. Use this OR `fps`, not both.
+</ParamField>
+
+<Tip>
+  Use `fps` for time-based frame extraction (e.g., 1.0 for 1 frame per second) or `num_frames` for a fixed number of evenly-spaced frames across the video duration.
+</Tip>
